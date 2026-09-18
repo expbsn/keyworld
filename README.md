@@ -254,12 +254,55 @@ Schaetzung; Cache-Treffer werden mit 0 gebucht und als Ersparnis gefuehrt.
       overrides.csv        deine Korrekturen
       keyworld.db          Cache, Kosten, Zustaende
 
+## Interface
+
+    ./keyworld.sh serve              # http://127.0.0.1:8765
+
+Lokal, stdlib-HTTP, keine Abhaengigkeit, kein Framework. Duenne Schicht
+ueber denselben Funktionen wie die CLI -- es gibt keine Logik, die nur dort
+existiert. Drei Module:
+
+    Shortlist   verdichtet je Gebiet, filterbar nach Zustand, Stufe und
+                SERP-Absicht. Zustand und Notiz direkt setzen.
+    Pruefliste  unsichere Domains nach Haeufigkeit, mit den Signalen, die
+                zur Unsicherheit gefuehrt haben. Eine Auswahl schreibt eine
+                Zeile in overrides.csv.
+    Kosten      Ledger, Runs, Cache-Ersparnis.
+
+Tastatur in der Shortlist:
+
+    j k      bewegen
+    s        shortlisted        r   rejected        v   reviewed
+    n        Notiz              Enter   SERP in Google oeffnen
+
+Das Interface scoutet NICHT. Abrufen kostet Geld, und Geld gibt man auf der
+Kommandozeile aus, nicht per Klick im Browser. Es liest den Zustandsspeicher
+und schreibt genau zwei Dinge zurueck: deinen Zustand je Keyword und deine
+Korrekturen.
+
+Die Pruefliste zeigt, wie weit die Arbeit traegt: bei 120 unsicheren Domains
+decken die obersten 20 bereits 43 % aller betroffenen Treffer ab.
+
+## Verdichtung und Trend
+
+72 Zeilen sind in Wahrheit etwa 25 Chancen -- "dienstplan vorlage",
+"dienstplan excel vorlage" und "dienstplan vorlage word" sind dieselbe
+Gelegenheit. Der Scout verdichtet deshalb je Themengebiet und zeigt die
+vertretbarste Zeile mit der Zahl der Varianten. `--flat` schaltet das ab.
+
+Der Trend (letzte 3 Monate gegen die 3 davor) steht als Spalte und laesst
+sich mit `--min-trend 0.8` filtern, ist aber standardmaessig AUS: ueber nur
+12 Monate Historie laesst sich Niedergang nicht von Saison trennen. Ein
+Schulthema im August sieht aus wie eine sterbende Nische. Sichtbar machen
+schlaegt wegfiltern.
+
 ## Nicht-Ziele
 
 Das Urteil ueber eine SERP wird nicht automatisiert. Ob die Top 3 schwache
 Blogartikel oder starke Produktseiten sind, entscheidest du. Das Tool
 liefert die Shortlist und den Ort, an dem dein Urteil landet.
 
-Kein Server, keine Web-UI, kein Dashboard. Abgerufen werden nur die Seiten,
-die fuer die Klassifikationssignale noetig sind -- die Treffer der SERPs,
-die du ohnehin bezahlt hast.
+Das Interface ist ein lokaler Prozess auf 127.0.0.1, kein Dashboard und
+kein Dienst -- es laeuft, solange du es laufen laesst. Abgerufen werden nur
+die Seiten, die fuer die Klassifikationssignale noetig sind: die Treffer der
+SERPs, die du ohnehin bezahlt hast.

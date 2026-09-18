@@ -48,6 +48,13 @@ CREATE TABLE IF NOT EXISTS keyword_state (
     cpc         REAL,
     volume      INTEGER,
     flags       TEXT NOT NULL DEFAULT '',
+    serp_intent TEXT NOT NULL DEFAULT '',
+    trend       REAL,
+    subject     TEXT NOT NULL DEFAULT '',
+    top_domains TEXT NOT NULL DEFAULT '',
+    sure        INTEGER,
+    unsure      INTEGER,
+    run_id      TEXT NOT NULL DEFAULT '',
     first_seen  REAL NOT NULL,
     updated_at  REAL NOT NULL,
     PRIMARY KEY (keyword, market)
@@ -76,10 +83,28 @@ CREATE TABLE IF NOT EXISTS runs (
 """
 
 
+# Spalten, die nach dem ersten Release dazukamen. SQLite kann nur einzeln
+# ergaenzen, also wird beim Verbinden nachgezogen statt migriert.
+LATE_COLUMNS = [
+    ("serp_intent", "TEXT NOT NULL DEFAULT ''"),
+    ("trend", "REAL"),
+    ("subject", "TEXT NOT NULL DEFAULT ''"),
+    ("top_domains", "TEXT NOT NULL DEFAULT ''"),
+    ("sure", "INTEGER"),
+    ("unsure", "INTEGER"),
+    ("run_id", "TEXT NOT NULL DEFAULT ''"),
+]
+
+
 def connect():
     conn = sqlite3.connect(str(Config.db_path))
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    have = set(r["name"] for r in conn.execute("PRAGMA table_info(keyword_state)"))
+    for name, decl in LATE_COLUMNS:
+        if name not in have:
+            conn.execute("ALTER TABLE keyword_state ADD COLUMN %s %s" % (name, decl))
+    conn.commit()
     return conn
 
 
@@ -201,11 +226,14 @@ class Run:
     def upsert_keyword(self, keyword, market, **fields):
         """Legt an oder aktualisiert die Messwerte. state und note bleiben
         unangetastet -- das ist die Spalte des Nutzers, nicht des Tools."""
-        cols = ("tier", "difficulty", "cpc", "volume", "flags")
+        cols = ("tier", "difficulty", "cpc", "volume", "flags", "serp_intent",
+                "trend", "subject", "top_domains", "sure", "unsure", "run_id")
         row = self.conn.execute(
             "SELECT state FROM keyword_state WHERE keyword=? AND market=?",
             (keyword, market)).fetchone()
         vals = [fields.get(c) for c in cols]
+        vals = [("" if c in ("flags", "serp_intent", "subject", "top_domains", "run_id")
+                 and v is None else v) for c, v in zip(cols, vals)]
         if row:
             self.conn.execute(
                 "UPDATE keyword_state SET %s, updated_at=? WHERE keyword=? AND market=?"
@@ -269,6 +297,23 @@ def open_tasks():
     conn = connect()
     return [dict(r) for r in conn.execute(
         "SELECT * FROM pending_tasks WHERE fetched_at IS NULL ORDER BY posted_at")]
+
+
+def set_keyword_state(keyword, market, state=None, note=None):
+    """Zustand setzen ohne einen Run zu eroeffnen -- fuer das Interface."""
+    if state is None and note is None:
+        return False
+    conn = connect()
+    sets, vals = [], []
+    if state is not None:
+        sets.append("state=?"); vals.append(state)
+    if note is not None:
+        sets.append("note=?"); vals.append(note)
+    vals += [now(), keyword.lower(), market]
+    cur = conn.execute("UPDATE keyword_state SET %s, updated_at=? WHERE keyword=? AND market=?"
+                       % ", ".join(sets), vals)
+    conn.commit()
+    return cur.rowcount > 0
 
 
 def keyword_rows(market, state=None, limit=None):

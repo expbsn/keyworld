@@ -1,0 +1,246 @@
+<!doctype html><html lang="de"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Keyworld</title>
+<style>
+:root{--bg:#fbfbfa;--fg:#1a1a18;--dim:#8a8a82;--line:#e2e2dc;--card:#fff;
+--acc:#2f6f4f;--warn:#9a6b1f;--bad:#9a3b2f;--bar:#dcdcd4;--sel:#eef2ee}
+@media(prefers-color-scheme:dark){:root{--bg:#111110;--fg:#e8e8e2;--dim:#7a7a72;
+--line:#2a2a27;--card:#191918;--acc:#6fbf8f;--warn:#d9a441;--bad:#e07a6a;
+--bar:#2e2e2a;--sel:#1d241f}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+header{position:sticky;top:0;z-index:5;background:var(--bg);
+border-bottom:1px solid var(--line);padding:10px 16px}
+.bar1{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
+h1{font-size:13px;margin:0;letter-spacing:.14em}
+nav{display:flex;gap:2px;margin-left:auto}
+nav button{background:none;border:1px solid transparent;color:var(--dim);
+padding:3px 10px;border-radius:4px;font:inherit;cursor:pointer}
+nav button.on{color:var(--fg);border-color:var(--line);background:var(--card)}
+.filters{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap;align-items:center}
+select,input{background:var(--card);color:var(--fg);border:1px solid var(--line);
+border-radius:4px;padding:3px 7px;font:inherit}
+input[type=search]{min-width:160px}
+label{color:var(--dim);font-size:11px;letter-spacing:.05em}
+main{padding:14px 16px 80px}
+table{width:100%;border-collapse:collapse;background:var(--card);
+border:1px solid var(--line);border-radius:5px;overflow:hidden}
+th,td{padding:5px 8px;text-align:left;border-bottom:1px solid var(--line);
+white-space:nowrap;font-variant-numeric:tabular-nums}
+th{color:var(--dim);font-weight:500;font-size:10px;text-transform:uppercase;
+letter-spacing:.06em;cursor:pointer;user-select:none}
+tbody tr{cursor:pointer}
+tbody tr.sel{background:var(--sel);box-shadow:inset 2px 0 0 var(--acc)}
+tr:last-child td{border-bottom:none}
+.n{text-align:right}.dim{color:var(--dim)}
+.bar{display:inline-block;width:46px;height:6px;border-radius:2px;
+background:var(--bar);vertical-align:middle}
+.bar>i{display:block;height:100%;border-radius:2px;background:var(--acc)}
+.b-mid>i{background:var(--warn)}.b-hi>i{background:var(--bad)}
+.t{display:inline-block;width:16px;height:16px;line-height:16px;text-align:center;
+border-radius:3px;font-size:10px;background:var(--bar)}
+.t1,.t2{background:var(--acc);color:var(--bg);font-weight:600}
+.pill{font-size:10px;letter-spacing:.05em;padding:0 5px;border-radius:3px;
+border:1px solid var(--line)}
+.PROD{color:var(--acc);border-color:var(--acc)}
+.RED{color:var(--bad);border-color:var(--bad)}
+.st-shortlisted{color:var(--acc)}.st-rejected{color:var(--dim);text-decoration:line-through}
+.st-reviewed{color:var(--warn)}
+.det{background:var(--card);border:1px solid var(--line);border-top:none;
+padding:10px 12px;border-radius:0 0 5px 5px}
+.det b{font-weight:600}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+button.act{background:var(--card);border:1px solid var(--line);color:var(--fg);
+padding:3px 10px;border-radius:4px;font:inherit;cursor:pointer}
+button.act:hover{border-color:var(--acc);color:var(--acc)}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+gap:8px;margin-bottom:12px}
+.kpi div{background:var(--card);border:1px solid var(--line);border-radius:5px;padding:9px 11px}
+.kpi b{display:block;font-size:17px;font-weight:600}
+.kpi span{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.06em}
+.hint{color:var(--dim);font-size:11px;margin-top:10px}
+.wrap{overflow-x:auto}
+kbd{border:1px solid var(--line);border-radius:3px;padding:0 4px;font-size:10px}
+@media(max-width:700px){th:nth-child(n+8),td:nth-child(n+8){display:none}}
+</style>
+<header>
+ <div class="bar1">
+  <h1>KEYWORLD</h1><span class="dim" id="market"></span>
+  <nav>
+   <button data-tab="list" class="on">Shortlist</button>
+   <button data-tab="queue">Pr&uuml;fliste</button>
+   <button data-tab="cost">Kosten</button>
+  </nav>
+ </div>
+ <div class="filters" id="filters">
+  <label>Zustand</label><select id="f-state"><option value="">alle</option>
+   <option>new</option><option>shortlisted</option><option>reviewed</option>
+   <option>rejected</option></select>
+  <label>Stufe</label><select id="f-tier"><option value="">alle</option>
+   <option>1</option><option>2</option><option>3</option><option>4</option>
+   <option>0</option></select>
+  <label>SERP</label><select id="f-serp"><option value="">alle</option>
+   <option>PROD</option><option>MIX</option><option>RED</option></select>
+  <label><input type="checkbox" id="f-group" checked> verdichtet</label>
+  <input type="search" id="f-q" placeholder="filtern">
+  <span class="dim" id="count"></span>
+ </div>
+</header>
+<main><div id="view"></div></main>
+<script>
+const $ = s => document.querySelector(s);
+const api = (p, o) => fetch(p, o).then(r => r.json());
+let tab = "list", rows = [], cur = 0;
+
+const esc = s => String(s ?? "").replace(/[<>&"]/g, c =>
+  ({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
+const bar = d => d == null ? '<span class="dim">?</span>' :
+  `<span class="bar ${d>=60?'b-hi':d>=35?'b-mid':''}"><i style="width:${Math.max(3,d)}%"></i></span> ${d}`;
+
+function q(){
+  const p = new URLSearchParams();
+  for (const [k,id] of [["state","#f-state"],["tier","#f-tier"],["serp","#f-serp"],["q","#f-q"]])
+    if ($(id).value) p.set(k, $(id).value);
+  if (!$("#f-group").checked) p.set("grouped","0");
+  return p.toString();
+}
+
+async function loadList(){
+  const d = await api("/api/shortlist?" + q());
+  rows = d.rows; $("#market").textContent = d.market;
+  $("#count").textContent = rows.length + " Zeilen";
+  render();
+}
+
+function render(){
+  if (!rows.length){ $("#view").innerHTML = '<p class="dim">Nichts gefunden.</p>'; return; }
+  const head = `<tr><th>Keyword</th><th>St</th><th>Difficulty</th><th>SERP</th>
+   <th class="n">Sicher</th><th class="n">CPC</th><th class="n">Vol</th>
+   <th class="n">Trend</th><th>Signale</th><th>Top-Domain</th><th>Zustand</th></tr>`;
+  const body = rows.map((r,i) => `<tr data-i="${i}" class="${i===cur?'sel':''}">
+    <td>${esc(r.keyword)}${r.variants && r.variants.length?
+      ` <span class="dim">+${r.variants.length}</span>`:""}</td>
+    <td><span class="t t${r.tier}">${r.tier}</span></td>
+    <td>${bar(r.difficulty)}</td>
+    <td><span class="pill ${esc(r.serp_intent)}">${esc(r.serp_intent||"-")}</span></td>
+    <td class="n dim">${r.sure ?? "-"}/${(r.sure||0)+(r.unsure||0)}</td>
+    <td class="n">${r.cpc==null?"-":r.cpc.toFixed(2)}</td>
+    <td class="n">${r.volume ?? "-"}</td>
+    <td class="n dim">${r.trend==null?"-":r.trend.toFixed(2)}</td>
+    <td class="dim">${esc(r.flags)}</td>
+    <td class="dim">${esc((r.top_domains||"").split(" ")[0]||"")}</td>
+    <td class="st-${esc(r.state)}">${esc(r.state)}</td></tr>`).join("");
+  $("#view").innerHTML = `<div class="wrap"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>
+    <div id="det"></div>
+    <p class="hint"><kbd>j</kbd><kbd>k</kbd> bewegen &middot; <kbd>s</kbd> shortlisted
+     &middot; <kbd>r</kbd> rejected &middot; <kbd>v</kbd> reviewed &middot;
+     <kbd>n</kbd> Notiz &middot; <kbd>Enter</kbd> SERP in Google &ouml;ffnen</p>`;
+  $("#view").querySelectorAll("tbody tr").forEach(tr =>
+    tr.onclick = () => { cur = +tr.dataset.i; render(); });
+  detail();
+}
+
+function detail(){
+  const r = rows[cur]; if (!r) return;
+  const v = (r.variants||[]).map(x =>
+    `${esc(x.keyword)} <span class="dim">${x.volume||"-"} / ${x.cpc==null?"-":x.cpc.toFixed(2)}&euro;</span>`
+  ).join(" &middot; ");
+  $("#det").innerHTML = `<div class="det">
+    <b>${esc(r.keyword)}</b> <span class="dim">&mdash; Gebiet ${esc(r.subject||"-")}</span>
+    <div class="row dim">Top-Domains: ${esc(r.top_domains||"-")}</div>
+    ${v?`<div class="row dim">Varianten: ${v}</div>`:""}
+    <div class="row">
+      <button class="act" data-s="shortlisted">shortlisted</button>
+      <button class="act" data-s="reviewed">reviewed</button>
+      <button class="act" data-s="rejected">rejected</button>
+      <input id="note" placeholder="Notiz" value="${esc(r.note||"")}" style="flex:1;min-width:200px">
+      <button class="act" id="savenote">Notiz sichern</button>
+    </div></div>`;
+  $("#det").querySelectorAll("button[data-s]").forEach(b =>
+    b.onclick = () => setState(r.keyword, b.dataset.s));
+  $("#savenote").onclick = () => setState(r.keyword, null, $("#note").value);
+}
+
+async function setState(keyword, state, note){
+  await api("/api/state", {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({keyword, state, note})});
+  const r = rows[cur];
+  if (state) r.state = state;
+  if (note != null) r.note = note;
+  render();
+}
+
+async function loadQueue(){
+  const d = await api("/api/queue");
+  const head = `<tr><th>Domain</th><th class="n">SERPs</th><th>Signale</th><th>Einordnen</th></tr>`;
+  const body = d.rows.map(r => `<tr>
+    <td><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.domain)}</a></td>
+    <td class="n">${r.hits}</td><td class="dim">${esc(r.guess)}</td>
+    <td><select class="ov" data-d="${esc(r.domain)}">
+      <option value="">&mdash;</option>
+      ${d.kinds.map(k=>`<option value="${k}">${k}</option>`).join("")}</select></td>
+   </tr>`).join("");
+  const total = d.rows.reduce((a,r)=>a+r.hits,0);
+  let acc = 0, need20 = 0;
+  d.rows.slice(0,20).forEach(r => acc += r.hits);
+  need20 = total ? Math.round(100*acc/total) : 0;
+  $("#view").innerHTML = `<div class="kpi">
+     <div><span>Unsichere Domains</span><b>${d.rows.length}</b></div>
+     <div><span>Betroffene Treffer</span><b>${total}</b></div>
+     <div><span>Top 20 decken ab</span><b>${need20}%</b></div>
+     <div><span>Overrides</span><b>${d.overrides}</b></div></div>
+    <div class="wrap"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>
+    <p class="hint">Nach H&auml;ufigkeit sortiert &mdash; die obersten Zeilen tragen
+     am meisten. Eine Zuordnung schreibt eine Zeile in data/overrides.csv und
+     schl&auml;gt ab dem n&auml;chsten Lauf jede Heuristik. Domainnamen &ouml;ffnen
+     die Beispielseite in einem neuen Tab.</p>`;
+  $("#view").querySelectorAll("select.ov").forEach(sel => sel.onchange = async () => {
+    if (!sel.value) return;
+    await api("/api/override", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({domain:sel.dataset.d, type:sel.value, note:"via Interface"})});
+    loadQueue();
+  });
+}
+
+async function loadCost(){
+  const d = await api("/api/costs");
+  const st = Object.entries(d.states).map(([k,v])=>`${k}=${v}`).join("  ") || "-";
+  $("#view").innerHTML = `<div class="kpi">
+    <div><span>Ausgegeben</span><b>$${d.spent.toFixed(4)}</b></div>
+    <div><span>Gespart (Cache)</span><b>$${d.saved.toFixed(4)}</b></div>
+    <div><span>API-Calls</span><b>${d.calls}</b></div>
+    <div><span>Markt</span><b>${esc(d.market)}</b></div></div>
+   <p class="dim">${esc(st)}</p>
+   <div class="wrap"><table><thead><tr><th>Run</th><th>Seed</th><th class="n">Calls</th>
+    <th class="n">USD</th><th>Status</th></tr></thead><tbody>
+    ${d.runs.map(r=>`<tr><td class="dim">${esc(r.run_id)}</td><td>${esc(r.seed)}</td>
+      <td class="n">${r.calls}</td><td class="n">${(r.cost||0).toFixed(4)}</td>
+      <td class="dim">${esc(r.status)}</td></tr>`).join("")}</tbody></table></div>
+   <p class="hint">Abrufen kostet Geld und passiert nur auf der Kommandozeile:
+    <code>./keyworld.sh scout --domains data/domains.txt --go</code></p>`;
+}
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on"); tab = b.dataset.tab;
+  $("#filters").style.display = tab === "list" ? "flex" : "none";
+  ({list:loadList, queue:loadQueue, cost:loadCost})[tab]();
+});
+["#f-state","#f-tier","#f-serp","#f-group"].forEach(s => $(s).onchange = loadList);
+$("#f-q").oninput = () => { clearTimeout(window._t); window._t = setTimeout(loadList, 200); };
+
+document.addEventListener("keydown", e => {
+  if (tab !== "list" || /input|select|textarea/i.test(e.target.tagName)) return;
+  const r = rows[cur]; if (!r) return;
+  if (e.key === "j" && cur < rows.length-1) { cur++; render(); }
+  else if (e.key === "k" && cur > 0) { cur--; render(); }
+  else if (e.key === "s") setState(r.keyword, "shortlisted");
+  else if (e.key === "r") setState(r.keyword, "rejected");
+  else if (e.key === "v") setState(r.keyword, "reviewed");
+  else if (e.key === "n") { $("#note")?.focus(); e.preventDefault(); }
+  else if (e.key === "Enter")
+    window.open("https://www.google.de/search?q=" + encodeURIComponent(r.keyword), "_blank");
+});
+loadList();
+</script>

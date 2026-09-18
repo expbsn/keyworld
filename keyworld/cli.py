@@ -12,6 +12,7 @@ import argparse
 import json
 import re
 import sys
+from pathlib import Path
 
 from .config import Config
 from .render import BOLD, DIM, RST, W, bar, cost_report, head, money, rule, table
@@ -119,7 +120,12 @@ def cmd_scout(args):
         print("  Keine DataForSEO-Credentials -- siehe .env.example", file=sys.stderr)
         return 1
     market = Config.market()
-    label = ", ".join(args.domain or args.seed or ["lauf"])
+    label = ", ".join(args.domain or args.seed or [])
+    if not label and args.domains:
+        label = Path(args.domains).stem          # domains.txt -> "domains"
+    if not label and args.keywords_file:
+        label = Path(args.keywords_file).stem
+    label = label or "lauf"
 
     with Run(seed=label, budget_usd=args.budget) as run:
         dfs = DataForSEO(live=args.live)
@@ -153,7 +159,7 @@ def cmd_scout(args):
 
         metrics = dfs.search_volume(candidates, run)
 
-        funnel = Funnel(args.min_volume, args.max_volume, args.min_cpc)
+        funnel = Funnel(args.min_volume, args.max_volume, args.min_cpc, args.min_trend)
         survivors = funnel.run(metrics)
         print(rule("-"))
         print(table(funnel.report_rows(), [("stufe", "FILTER", 26, "l"),
@@ -204,27 +210,48 @@ def cmd_scout(args):
         rows = []
         for m, lvl, name, _pat in annotated:
             a = analysis.get(m.keyword) or {}
-            st = run.upsert_keyword(m.keyword, market, tier=lvl,
-                                    difficulty=a.get("difficulty"), cpc=m.cpc,
-                                    volume=m.search_volume, flags=" ".join(a.get("flags", [])))
+            st = run.upsert_keyword(
+                m.keyword, market, tier=lvl, difficulty=a.get("difficulty"),
+                cpc=m.cpc, volume=m.search_volume,
+                flags=" ".join(a.get("flags", [])),
+                serp_intent=a.get("serp_intent", ""), trend=m.trend_ratio(),
+                subject=subjects.get(m.keyword, ""),
+                top_domains=" ".join(a.get("top_domains", [])[:4]),
+                sure=a.get("sure"), unsure=a.get("unsure"), run_id=run.run_id)
             prev = known.get(m.keyword, {})
             rows.append(dict(m.to_dict(), tier=lvl, tier_name=name, serp=a or None,
                              state=prev.get("state", st), note=prev.get("note", ""),
                              market=market))
         run.commit()
 
-        cols = [("kw", "KEYWORD", 34, "l"), ("tier", "T", 1, "r"),
-                ("diff", "DIFF", 4, "r"), ("viz", "", 9, "l"),
-                ("si", "SERP", 4, "l"), ("sure", "SICH", 5, "r"),
-                ("flags", "SIGNALE", 20, "l"), ("cpc", "CPC", 6, "r"),
-                ("vol", "VOL", 6, "r"), ("top", "TOP-DOMAIN", 20, "l")]
-        for title, group in (("STUFE 1-3 UND OFFEN", visible), ("STUFE 4  Orientierung", sunk)):
-            if not group:
+        cols = [("kw", "KEYWORD", 32, "l"), ("tier", "T", 1, "r"),
+                ("diff", "DIFF", 4, "r"), ("viz", "", 8, "l"),
+                ("si", "SERP", 4, "l"), ("sure", "SICH", 4, "r"),
+                ("trend", "TR", 4, "r"), ("flags", "SIGNALE", 18, "l"),
+                ("cpc", "CPC", 6, "r"), ("vol", "VOL", 6, "r"),
+                ("var", "VAR", 3, "r"), ("top", "TOP-DOMAIN", 18, "l")]
+
+        from .cluster import group as cluster_group, summary as cluster_summary
+        by_row = dict((r["keyword"], r) for r in rows)
+        for title, grp in (("STUFE 1-3 UND OFFEN", visible), ("STUFE 4  Orientierung", sunk)):
+            if not grp:
                 continue
             print()
             print("%s%s%s" % (BOLD, title, RST))
-            print(table([_row(m, lvl, analysis, incumbents)
-                         for m, lvl, _n, _p in group[:args.top]], cols))
+            if args.flat:
+                out = [_row(m, lvl, analysis, incumbents, 0) for m, lvl, _n, _p in grp[:args.top]]
+            else:
+                picked = cluster_group([by_row[m.keyword] for m, _l, _n, _p in grp],
+                                       lambda k: subjects.get(k, k))
+                info = cluster_summary(picked)
+                print("  %s%d Gebiete aus %d Zeilen (%.1f Varianten je Gebiet)%s"
+                      % (DIM, info["gebiete"], info["zeilen"], info["verdichtung"], RST))
+                lookup = dict((m.keyword, (m, lvl)) for m, lvl, _n, _p in grp)
+                out = []
+                for _subj, g in list(picked.items())[:args.top]:
+                    m, lvl = lookup[g["best"]["keyword"]]
+                    out.append(_row(m, lvl, analysis, incumbents, len(g["variants"])))
+            print(table(out, cols))
 
         bonus = []
         for v in serps.values():
@@ -286,11 +313,14 @@ def _classify_cached(targets, overrides, run, workers):
     return out
 
 
-def _row(m, lvl, analysis, incumbents):
+def _row(m, lvl, analysis, incumbents, n_variants=0):
     a = analysis.get(m.keyword) or {}
     d = a.get("difficulty")
+    t = m.trend_ratio()
     inc = [x for x in a.get("top_domains", []) if x in incumbents]
-    return {"kw": m.keyword, "tier": lvl, "diff": d, "viz": bar(d, 100, 9),
+    return {"kw": m.keyword, "tier": lvl, "diff": d, "viz": bar(d, 100, 8),
+            "trend": ("%.2f" % t)[1:] if t else "-",
+            "var": ("+%d" % n_variants) if n_variants else "",
             "si": a.get("serp_intent", ""),
             "sure": "%d/%d" % (a.get("sure", 0), a.get("sure", 0) + a.get("unsure", 0)),
             "flags": " ".join(a.get("flags", [])),
@@ -335,6 +365,13 @@ def cmd_queue(args):
     print(rule("-"))
     print("  Datei: %s" % OVERRIDES_PATH)
     print("  Direkt editierbar, oder: keyworld queue --domain X --type product")
+    return 0
+
+
+def cmd_serve(args):
+    from .ui import serve
+    print(head("INTERFACE"))
+    serve(args.port, not args.no_open)
     return 0
 
 
@@ -414,6 +451,10 @@ def main(argv=None):
     s.add_argument("--min-volume", type=int, default=300)
     s.add_argument("--max-volume", type=int, default=10000)
     s.add_argument("--min-cpc", type=float, default=0.50)
+    s.add_argument("--min-trend", type=float,
+                   help="0.8 = schrumpfende Nischen raus (Standard: nur anzeigen)")
+    s.add_argument("--flat", action="store_true",
+                   help="ohne Verdichtung je Gebiet, jede Zeile einzeln")
     s.add_argument("--budget", type=float, default=Config.run_budget_usd)
     s.add_argument("--live", action="store_true")
     s.add_argument("--max-serp", type=int, default=120)
@@ -442,6 +483,11 @@ def main(argv=None):
                                       "marketplace", "aggregator"))
     q.add_argument("--note")
     q.set_defaults(fn=cmd_queue)
+
+    sv = sub.add_parser("serve", help="Lokales Interface im Browser")
+    sv.add_argument("--port", type=int, default=8765)
+    sv.add_argument("--no-open", action="store_true")
+    sv.set_defaults(fn=cmd_serve)
 
     c = sub.add_parser("costs", help="Ausgabenuebersicht")
     c.add_argument("--run")
