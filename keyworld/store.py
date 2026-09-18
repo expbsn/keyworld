@@ -38,6 +38,21 @@ CREATE TABLE IF NOT EXISTS cost_ledger (
 );
 CREATE INDEX IF NOT EXISTS idx_ledger_run ON cost_ledger(run_id);
 
+CREATE TABLE IF NOT EXISTS keyword_state (
+    keyword     TEXT NOT NULL,
+    market      TEXT NOT NULL,
+    state       TEXT NOT NULL DEFAULT 'new',
+    note        TEXT NOT NULL DEFAULT '',
+    tier        INTEGER,
+    difficulty  INTEGER,
+    cpc         REAL,
+    volume      INTEGER,
+    flags       TEXT NOT NULL DEFAULT '',
+    first_seen  REAL NOT NULL,
+    updated_at  REAL NOT NULL,
+    PRIMARY KEY (keyword, market)
+);
+
 CREATE TABLE IF NOT EXISTS pending_tasks (
     task_id     TEXT PRIMARY KEY,
     run_id      TEXT NOT NULL,
@@ -182,6 +197,53 @@ class Run:
                           (now(), task_id))
         self.conn.commit()
 
+    # -- Keyword-Zustand -------------------------------------------------
+    def upsert_keyword(self, keyword, market, **fields):
+        """Legt an oder aktualisiert die Messwerte. state und note bleiben
+        unangetastet -- das ist die Spalte des Nutzers, nicht des Tools."""
+        cols = ("tier", "difficulty", "cpc", "volume", "flags")
+        row = self.conn.execute(
+            "SELECT state FROM keyword_state WHERE keyword=? AND market=?",
+            (keyword, market)).fetchone()
+        vals = [fields.get(c) for c in cols]
+        if row:
+            self.conn.execute(
+                "UPDATE keyword_state SET %s, updated_at=? WHERE keyword=? AND market=?"
+                % ", ".join("%s=?" % c for c in cols),
+                vals + [now(), keyword, market])
+            return row["state"]
+        self.conn.execute(
+            "INSERT INTO keyword_state (keyword, market, %s, first_seen, updated_at)"
+            " VALUES (?,?,%s,?,?)" % (", ".join(cols), ",".join("?" * len(cols))),
+            [keyword, market] + vals + [now(), now()])
+        return "new"
+
+    def set_state(self, keyword, market, state=None, note=None):
+        if state is None and note is None:
+            return False
+        sets, vals = [], []
+        if state is not None:
+            sets.append("state=?"); vals.append(state)
+        if note is not None:
+            sets.append("note=?"); vals.append(note)
+        vals += [now(), keyword.lower(), market]
+        cur = self.conn.execute(
+            "UPDATE keyword_state SET %s, updated_at=? WHERE keyword=? AND market=?"
+            % ", ".join(sets), vals)
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def states(self, market, keywords=None):
+        if keywords:
+            marks = ",".join("?" * len(keywords))
+            rows = self.conn.execute(
+                "SELECT * FROM keyword_state WHERE market=? AND keyword IN (%s)" % marks,
+                [market] + list(keywords)).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT * FROM keyword_state WHERE market=?", (market,)).fetchall()
+        return dict((r["keyword"], dict(r)) for r in rows)
+
     def commit(self):
         self.conn.commit()
 
@@ -207,6 +269,25 @@ def open_tasks():
     conn = connect()
     return [dict(r) for r in conn.execute(
         "SELECT * FROM pending_tasks WHERE fetched_at IS NULL ORDER BY posted_at")]
+
+
+def keyword_rows(market, state=None, limit=None):
+    conn = connect()
+    q = "SELECT * FROM keyword_state WHERE market=?"
+    args = [market]
+    if state:
+        q += " AND state=?"; args.append(state)
+    q += " ORDER BY (difficulty IS NULL) DESC, difficulty ASC, cpc DESC"
+    if limit:
+        q += " LIMIT %d" % int(limit)
+    return [dict(r) for r in conn.execute(q, args)]
+
+
+def state_counts(market):
+    conn = connect()
+    return dict((r["state"], r["n"]) for r in conn.execute(
+        "SELECT state, COUNT(*) AS n FROM keyword_state WHERE market=? GROUP BY state",
+        (market,)))
 
 
 def lifetime_cost():

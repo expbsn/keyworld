@@ -61,7 +61,7 @@ class Funnel:
 
 
 def annotate_intent(metrics):
-    """Haengt Absichtsstufe an. Kostet nichts, laeuft vor dem Difficulty-Einkauf."""
+    """Haengt die Absichtsstufe an. Kostenlos, laeuft vor jedem Einkauf."""
     out = []
     for m in metrics:
         lvl, name, pat = classify(m.keyword)
@@ -70,13 +70,21 @@ def annotate_intent(metrics):
 
 
 def order(annotated, difficulty_of):
-    """Sortierung: Stufe 1-2 zuerst, darin Difficulty aufsteigend. Dann der Rest.
+    """Sortierung: eine Achse, Difficulty aufsteigend.
 
-    Bewusst zwei Bloecke statt eines gemischten Scores -- innerhalb jedes Blocks
-    gibt es genau eine Sortierachse, und die Gegenlaeufigkeit bleibt sichtbar.
+    Unbekannte Difficulty kommt ZUERST, nicht zuletzt. Fehlerbias: ein falsch
+    aussortiertes Keyword kostet die ganze Nische, ein zu viel geprueftes
+    zehn Minuten.
     """
     def key(row):
-        m, lvl = row[0], row[1]
+        m = row[0]
         kd = difficulty_of(m.keyword)
-        return (0 if lvl <= 2 else 1, 999 if kd is None else kd, -(m.cpc or 0.0))
+        return (0 if kd is None else 1, kd or 0, -(m.cpc or 0.0))
     return sorted(annotated, key=key)
+
+
+def split_tiers(annotated):
+    """Stufe 1-3 und Offen bleiben sichtbar, Stufe 4 sinkt."""
+    from .intent import is_visible
+    return ([a for a in annotated if is_visible(a[1])],
+            [a for a in annotated if not is_visible(a[1])])

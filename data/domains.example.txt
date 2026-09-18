@@ -1,0 +1,9 @@
+# Themengebiete, eines je Zeile. Kopiere nach data/domains.txt und passe an.
+zeiterfassung
+rechnung schreiben
+dienstplan
+urlaubsantrag
+inventur
+angebot erstellen
+lieferschein
+kassenbuch

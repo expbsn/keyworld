@@ -1,111 +1,33 @@
-"""SERP-Analyse: Difficulty aus der Zusammensetzung der Top 10 ableiten.
+"""SERP-Analyse: Schwaechesignale und Difficulty aus den Top 10.
 
-Warum nicht den fertigen Keyword-Difficulty-Wert kaufen: der ist bei
-Long-Tail-Keywords zu 59 % leer, und genau dort liegen die Nischen.
+Difficulty wird nur aus Treffern gerechnet, die sicher eingestuft sind.
+Unsichere und unbekannte zaehlen NICHT als Produktseite -- sonst wuerde jede
+unbekannte Domain die Difficulty hochtreiben und die Chance verstecken.
 
-Warum nicht einfach Domain-Vielfalt zaehlen: zehn verschiedene Domains koennen
-zehn etablierte Hersteller sein. Vielfalt allein misst nichts.
-
-Was wirklich zaehlt, ist wer die Plaetze haelt. Ein Ratgeber-Artikel, ein
-Forenthread oder eine Amazon-Suchergebnisseite sind von einer echten
-Produktseite angreifbar. Eine echte Produktseite ist es nicht.
+Bleiben zu wenige sichere Treffer uebrig, ist die Difficulty `None`. Das
+Keyword wird dann nicht aussortiert, sondern zuerst gezeigt: ein falsch
+Aussortiertes kostet die ganze Nische, ein zu viel geprueftes zehn Minuten.
 """
-import re
 from collections import Counter
-from urllib.parse import urlparse
 
-# -- Ergebnistypen ------------------------------------------------------------
-UGC_DOMAINS = {
-    "reddit.com", "quora.com", "gutefrage.net", "wer-weiss-was.de",
-    "stackoverflow.com", "stackexchange.com", "superuser.com", "serverfault.com",
-    "facebook.com", "instagram.com", "tiktok.com", "pinterest.de", "pinterest.com",
-    "youtube.com", "x.com", "twitter.com", "linkedin.com", "xing.com",
-    "wikipedia.org", "wikihow.com", "medium.com", "tumblr.com",
-    "trustpilot.com", "proven-expert.com", "provenexpert.com",
-}
-UGC_PATTERNS = [r"forum", r"community", r"\bboard\b", r"-hilfe", r"frag[a-z]*\.",
-                r"\.forumieren\.", r"gutefrage"]
+from .classify import CONFIDENCE_FLOOR, is_stale
 
-AGGREGATOR_DOMAINS = {          # Vergleichsportale: niemand besitzt das Keyword
-    "capterra.com", "capterra.com.de", "g2.com", "getapp.de", "getapp.com",
-    "softwareadvice.com", "omr.com", "trusted.de", "sortlist.de", "wlw.de",
-    "testberichte.de", "vergleich.org", "netzsieger.de", "expertentesten.de",
-    "stiftung-warentest.de", "oekotest.de", "check24.de", "verivox.de",
-}
-MARKETPLACE_DOMAINS = {
-    "amazon.de", "amazon.com", "ebay.de", "ebay.com", "etsy.com", "otto.de",
-    "kaufland.de", "idealo.de", "galaxus.de", "alibaba.com", "aliexpress.com",
-    "temu.com", "shop-apotheke.de", "docmorris.de",
-}
-PUBLISHER_DOMAINS = {           # Redaktionelle Reichweite, meist Affiliate
-    "welt.de", "spiegel.de", "stern.de", "focus.de", "chip.de", "computerbild.de",
-    "heise.de", "t3n.de", "giga.de", "netzwelt.de", "techstage.de", "t-online.de",
-    "n-tv.de", "merkur.de", "rtl.de", "brigitte.de", "geo.de", "utopia.de",
-}
-EDITORIAL_PATHS = [r"/magazin", r"/ratgeber", r"/blog", r"/news", r"/vergleich",
-                   r"/test", r"/guide", r"/wiki", r"/lexikon", r"/tipps",
-                   r"/artikel", r"/journal", r"/academy", r"/wissen", r"/r/"]
-EDITORIAL_TLDS = (".academy", ".blog", ".wiki", ".info", ".news", ".guru", ".tips")
-# Titelmuster verraten Ratgeber-Inhalte auch dann, wenn Domain und Pfad schweigen
-EDITORIAL_TITLE = [r"\bratgeber\b", r"\btipps?\b", r"so geht", r"solltest du",
-                   r"vorteile", r"nachteile", r"\berkl(ae|ä)rt\b", r"\bwas ist\b",
-                   r"\bwie \w+", r"\bwarum\b", r"worauf", r"alles (ue|ü)ber",
-                   r"\banleitung\b", r"\bcheckliste\b", r"\bwissen\b",
-                   r"\bvergleich\b", r"\btest\b", r"\bguide\b", r"\d+ (tipps|gruende)"]
-
-# Angreifbar = alles ausser einer echten Produkt- oder Anbieterseite
-WEAK = {"ugc", "aggregator", "editorial", "marketplace"}
-
-
-def _norm(domain):
-    d = (domain or "").lower().lstrip(".")
-    return d[4:] if d.startswith("www.") else d
-
-
-def _is_marketplace_search(url):
-    """Amazon-Suchergebnisseite statt Produktseite: Google fand nichts Besseres."""
-    return bool(re.search(r"[?&](k|q|_nkw)=|/s\?|/sch/", url or ""))
-
-
-def classify_result(domain, url, title=None):
-    """-> ugc | aggregator | marketplace | editorial | product"""
-    d, u = _norm(domain), (url or "").lower()
-    base = ".".join(d.split(".")[-2:]) if d.count(".") >= 1 else d
-
-    if d in UGC_DOMAINS or base in UGC_DOMAINS:
-        return "ugc"
-    if any(re.search(p, d) for p in UGC_PATTERNS):
-        return "ugc"
-    if d in AGGREGATOR_DOMAINS or base in AGGREGATOR_DOMAINS:
-        return "aggregator"
-    if d in MARKETPLACE_DOMAINS or base in MARKETPLACE_DOMAINS:
-        return "marketplace"
-    if d in PUBLISHER_DOMAINS or base in PUBLISHER_DOMAINS:
-        return "editorial"
-    path = urlparse(u).path if u else ""
-    if any(re.search(p, path) for p in EDITORIAL_PATHS):
-        return "editorial"
-    if d.endswith(EDITORIAL_TLDS):
-        return "editorial"
-    t = (title or "").lower()
-    if t and any(re.search(p, t) for p in EDITORIAL_TITLE):
-        return "editorial"
-    return "product"
+MIN_CLASSIFIED = 3      # darunter ist jede Difficulty geraten
+TOP_N = 5               # Schwaechesignale gelten fuer die oberen Plaetze
 
 
 def parse_serp(result):
-    """Zieht Organics, verwandte Suchen und PAA aus einer SERP-Antwort."""
+    """Organics, verwandte Suchen und PAA aus einer SERP-Antwort."""
     organics, related, paa = [], [], []
     for item in result.get("items") or []:
         t = item.get("type")
         if t == "organic":
-            dom = _norm(item.get("domain"))
+            dom = (item.get("domain") or "").lower()
             organics.append({
                 "rank": item.get("rank_group"),
-                "domain": dom,
+                "domain": dom[4:] if dom.startswith("www.") else dom,
                 "url": item.get("url"),
                 "title": item.get("title"),
-                "kind": classify_result(dom, item.get("url"), item.get("title")),
             })
         elif t == "related_searches":
             related.extend(item.get("items") or [])
@@ -120,31 +42,84 @@ def parse_serp(result):
                        if i.get("type") in ("paid", "shopping"))}
 
 
-def analyse(serp, incumbents=None):
-    """Difficulty 0-100 aus der SERP-Zusammensetzung. Niedrig = angreifbar.
+def attach_verdicts(serp, verdicts):
+    """Haengt die Seitenurteile an die Organics."""
+    for o in serp["organics"]:
+        v = verdicts.get(o["url"]) or {}
+        o["kind"] = v.get("kind", "unknown")
+        o["confidence"] = v.get("confidence", 0.0)
+        o["lang"] = v.get("lang")
+        o["published"] = v.get("published")
+        o["download"] = v.get("download", False)
+        o["why"] = v.get("why", [])
+        o["sure"] = o["kind"] != "unknown" and o["confidence"] >= CONFIDENCE_FLOOR
+    return serp
 
-    incumbents: Domains, die im gesamten gescouteten Set haeufig vorkommen.
-    Ein Platzhirsch, der ueberall sitzt, ist teurer als zehn Einzelanbieter.
-    """
+
+def weak_signals(serp, market_lang="de"):
+    """Die Signale, die eine angreifbare SERP verraten. Nur die oberen Plaetze."""
+    top = serp["organics"][:TOP_N]
+    if not top:
+        return [], {}
+    sure = [o for o in top if o["sure"]]
+    langs = [o["lang"] for o in top if o["lang"]]
+
+    flags = []
+    if any(o["kind"] == "forum" for o in sure):
+        flags.append("FORUM")
+    n_article = sum(1 for o in sure if o["kind"] == "article")
+    if n_article >= 2:
+        flags.append("ARTIKEL%d" % n_article)
+    if any(is_stale(o["published"]) for o in top):
+        flags.append("ALT")
+    if len(langs) >= 2 and all(l != market_lang for l in langs):
+        flags.append("NUR-EN")
+    if any(o["download"] for o in top):
+        flags.append("VORLAGE")
+    if any(o["kind"] == "aggregator" for o in sure):
+        flags.append("PORTAL")
+    n_unsure = len(top) - len(sure)
+    if n_unsure >= 3:
+        flags.append("UNKLAR%d" % n_unsure)
+    return flags, {"top_n": len(top), "sure_top": len(sure), "articles_top": n_article}
+
+
+def analyse(serp, incumbents=None, market_lang="de"):
+    """Difficulty 0-100 aus sicher eingestuften Treffern. Niedrig = angreifbar."""
     org = serp["organics"]
     if not org:
         return None
-    n = len(org)
+    sure = [o for o in org if o["sure"]]
+    flags, detail = weak_signals(serp, market_lang)
     kinds = Counter(o["kind"] for o in org)
-    product_share = kinds["product"] / n
-    weak_share = sum(kinds[k] for k in WEAK) / n
-    diversity = len(set(o["domain"] for o in org)) / n
-
     inc = incumbents or set()
-    incumbent_share = sum(1 for o in org if o["domain"] in inc) / n
+    incumbent_share = sum(1 for o in org if o["domain"] in inc) / len(org)
+    diversity = len(set(o["domain"] for o in org)) / len(org)
 
+    base = {
+        "mix": dict(kinds),
+        "unsure": len(org) - len(sure),
+        "sure": len(sure),
+        "flags": flags,
+        "ads": serp.get("ads", 0),
+        "diversity": round(diversity, 2),
+        "incumbent_share": round(incumbent_share, 2),
+        "top_domains": [o["domain"] for o in org[:5]],
+        "unknown_domains": sorted(set(o["domain"] for o in org if not o["sure"])),
+    }
+
+    if len(sure) < MIN_CLASSIFIED:
+        # Zu duenne Beleglage. Nicht raten, nicht aussortieren -- zeigen.
+        base.update({"difficulty": None, "product_share": None,
+                     "serp_intent": "?", "review": True,
+                     "why": "nur %d von %d Treffern sicher eingestuft"
+                            % (len(sure), len(org))})
+        return base
+
+    product_share = sum(1 for o in sure if o["kind"] == "product") / len(sure)
     difficulty = 100.0 * (0.50 * product_share
                           + 0.35 * incumbent_share
                           + 0.15 * (1.0 - diversity))
-
-    # Zeigt Google hier ueberhaupt Produktseiten? Eine niedrige Difficulty auf
-    # einer rein redaktionellen SERP ist keine Chance, sondern die falsche
-    # Absicht -- ein Produkt rankt dort gar nicht erst.
     if product_share >= 0.40:
         serp_intent = "PROD"
     elif product_share >= 0.20:
@@ -152,17 +127,12 @@ def analyse(serp, incumbents=None):
     else:
         serp_intent = "RED"
 
-    return {
-        "difficulty": int(round(difficulty)),
-        "serp_intent": serp_intent,
-        "product_share": round(product_share, 2),
-        "weak_share": round(weak_share, 2),
-        "diversity": round(diversity, 2),
-        "incumbent_share": round(incumbent_share, 2),
-        "mix": dict(kinds),
-        "ads": serp.get("ads", 0),
-        "top_domains": [o["domain"] for o in org[:5]],
-    }
+    base.update({"difficulty": int(round(difficulty)),
+                 "product_share": round(product_share, 2),
+                 "serp_intent": serp_intent,
+                 "review": base["unsure"] >= 3,
+                 "why": ""})
+    return base
 
 
 def find_incumbents(serps, min_share=0.25):
@@ -174,4 +144,17 @@ def find_incumbents(serps, min_share=0.25):
         for d in set(o["domain"] for o in s["organics"]):
             seen[d] += 1
     cutoff = max(2, int(len(serps) * min_share))
-    return {d for d, c in seen.items() if c >= cutoff}
+    return set(d for d, c in seen.items() if c >= cutoff)
+
+
+def review_queue(analysis, serps):
+    """Domains, deren Einstufung unsicher ist -- Kandidaten fuer overrides.csv."""
+    counts = Counter()
+    example = {}
+    for kw, s in serps.items():
+        for o in s["organics"]:
+            if not o.get("sure"):
+                counts[o["domain"]] += 1
+                example.setdefault(o["domain"], o["url"])
+    return [{"domain": d, "hits": c, "url": example[d],
+             "kind": "unknown", "note": ""} for d, c in counts.most_common()]

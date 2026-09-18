@@ -1,88 +1,147 @@
-"""Keyworld CLI -- Datenquellen-Schicht.
+"""Keyworld CLI.
 
-    keyworld probe                     Verbindung + Guthaben pruefen (kostenlos)
-    keyworld discover <seed>           Layer 0, kostenlose Kandidaten
-    keyworld scout <seed> [--go]       Layer 0+1, ohne --go nur Kostenschaetzung
-    keyworld costs [--run ID]          Ausgabenuebersicht
+    keyworld probe                      Verbindung und Guthaben, kostenlos
+    keyworld gen                        Themengebiete x Muster -> Keywords
+    keyworld scout                      Kompletter Lauf -> CSV-Shortlist
+    keyworld review                     Zustand und Notiz je Keyword
+    keyworld queue                      Unsichere Domains fuer overrides.csv
+    keyworld costs                      Ausgabenuebersicht
+    keyworld fetch                      Offene Queue-Tasks einsammeln
 """
 import argparse
 import json
+import re
 import sys
 
 from .config import Config
-from .render import (BOLD, DIM, RST, W, bar, cost_report, head, money, rule, table)
-from .store import Run, all_runs, lifetime_cost
+from .render import BOLD, DIM, RST, W, bar, cost_report, head, money, rule, table
+from .store import Run, all_runs, keyword_rows, lifetime_cost, state_counts
+
+STATES = ("new", "shortlisted", "reviewed", "rejected")
 
 
+def _slug(text):
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:48] or "run"
+
+
+# -- probe --------------------------------------------------------------------
 def cmd_probe(args):
     print(head("PROBE  markt=%s" % Config.market()))
     if not Config.has_dataforseo():
         print("  %sDataForSEO: keine Credentials%s" % (DIM, RST))
-        print("  -> cp .env.example .env  und Login/Passwort eintragen")
-        print("  -> Layer 0 (Discovery) laeuft auch ohne Credentials.")
+        print("  -> cp .env.example .env  und Login/API-Passwort eintragen")
         return 1
     from .providers import DataForSEO
     ok, msg = DataForSEO().probe()
     print("  DataForSEO: %s %s" % ("OK" if ok else "FEHLER", msg))
     spent, saved, calls = lifetime_cost()
     print("  Keyworld lifetime: $%.4f ueber %d Calls (gespart: $%.4f)" % (spent, calls, saved))
-    return 0 if ok else 1
+    counts = state_counts(Config.market())
+    if counts:
+        print("  Keywords: " + "  ".join("%s=%d" % kv for kv in sorted(counts.items())))
+    return 0
 
 
+# -- gen ----------------------------------------------------------------------
+def cmd_gen(args):
+    from .generate import expand, read_list
+    from .intent import classify
+    domains = list(args.domain) + (read_list(args.domains) if args.domains else [])
+    patterns = read_list(args.patterns) if args.patterns else read_list("data/patterns.txt")
+    if not domains:
+        print("  Keine Themengebiete. --domain oder --domains angeben.", file=sys.stderr)
+        return 1
+    kws = expand(domains, patterns)
+    from collections import Counter
+    dist = Counter(classify(k)[0] for k in kws)
+    print(head("GEN  %d Themengebiete x %d Muster = %d Keywords"
+               % (len(domains), len(patterns), len(kws))))
+    print("  Stufen: " + "  ".join("%d=%d" % (t, dist[t]) for t in sorted(dist)))
+    if args.out:
+        open(args.out, "w", encoding="utf-8").write("\n".join(kws) + "\n")
+        print("  -> %s" % args.out)
+    else:
+        for k in kws:
+            print("  " + k)
+    return 0
+
+
+# -- discover -----------------------------------------------------------------
 def cmd_discover(args):
     from .providers import FreeDiscovery
     with Run(seed=args.seed, budget_usd=0.0) as run:
         kws = FreeDiscovery().expand(args.seed, run, limit=args.limit, deep=args.deep)
-        print(head("DISCOVERY  seed=%s  layer=0  kosten=$0.0000" % args.seed))
+        print(head("DISCOVERY  seed=%s  kosten=$0.0000" % args.seed))
         for k in kws:
             print("  " + k)
         print(rule("-"))
-        print("  %d Kandidaten | naechster Schritt: keyworld scout %s" % (len(kws), args.seed))
-        if args.json:
-            open(args.json, "w").write(json.dumps(kws, ensure_ascii=False, indent=2))
-            print("  -> %s" % args.json)
+        print("  %d Kandidaten" % len(kws))
+        if args.out:
+            open(args.out, "w", encoding="utf-8").write("\n".join(kws) + "\n")
+            print("  -> %s" % args.out)
     return 0
 
 
-def _mix_str(mix):
-    """Kompakte SERP-Zusammensetzung: 4P 5E 1M -> Produkt, Editorial, Marktplatz."""
-    short = {"product": "P", "editorial": "E", "marketplace": "M",
-             "ugc": "U", "aggregator": "A"}
-    return " ".join("%d%s" % (mix[k], short[k]) for k in
-                    ("product", "editorial", "aggregator", "ugc", "marketplace")
-                    if mix.get(k))
+# -- scout --------------------------------------------------------------------
+def _collect_candidates(args, run):
+    """Kartesisches Produkt, Seed-Datei und Autocomplete zusammenfuehren."""
+    from .generate import expand, read_list
+    out = []
+    domains = list(args.domain) + (read_list(args.domains) if args.domains else [])
+    if domains:
+        patterns = read_list(args.patterns or "data/patterns.txt")
+        out += expand(domains, patterns)
+        print("  Generator: %d Themengebiete x %d Muster = %d Keywords"
+              % (len(domains), len(patterns), len(out)))
+    if args.keywords_file:
+        extra = read_list(args.keywords_file)
+        out += extra
+        print("  Datei: %d Keywords" % len(extra))
+    if args.seed:
+        from .providers import FreeDiscovery
+        disc = FreeDiscovery()
+        n0 = len(out)
+        for sd in args.seed:
+            out += disc.expand(sd, run, limit=args.limit, deep=args.deep)
+        print("  Autocomplete: %d Kandidaten aus %d Seed(s)" % (len(out) - n0, len(args.seed)))
+    return list(dict.fromkeys(k.strip().lower() for k in out if k.strip()))
 
 
 def cmd_scout(args):
-    from .filters import Funnel, annotate_intent, order
-    from .providers import DataForSEO, FreeDiscovery
-    from .serp import analyse, find_incumbents
+    from .classify import CONFIDENCE_FLOOR, load_overrides
+    from .export import write_csv, write_review_csv
+    from .filters import Funnel, annotate_intent, order, split_tiers
+    from .providers import DataForSEO
+    from .serp import analyse, attach_verdicts, find_incumbents, review_queue
+
     if not Config.has_dataforseo():
         print("  Keine DataForSEO-Credentials -- siehe .env.example", file=sys.stderr)
         return 1
+    market = Config.market()
+    label = ", ".join(args.domain or args.seed or ["lauf"])
 
-    seeds = list(args.seed) if isinstance(args.seed, list) else [args.seed]
-    if args.seeds_file:
-        extra = [l.strip() for l in open(args.seeds_file, encoding="utf-8")]
-        seeds += [l for l in extra if l and not l.startswith("#")]
-    seeds = list(dict.fromkeys(seeds))
-    with Run(seed=", ".join(seeds), budget_usd=args.budget) as run:
+    with Run(seed=label, budget_usd=args.budget) as run:
         dfs = DataForSEO(live=args.live)
-        disc = FreeDiscovery()
+        print(head("SCOUT  %s  markt=%s" % (label, market)))
+        candidates = _collect_candidates(args, run)
+        if not candidates:
+            print("  Keine Kandidaten.", file=sys.stderr)
+            return 1
 
-        candidates = []
-        for sd in seeds:
-            candidates += disc.expand(sd, run, limit=args.limit, deep=args.deep)
-        candidates = list(dict.fromkeys(candidates))
-        print(head("SCOUT  seed=%s  markt=%s" % (", ".join(seeds), Config.market()), W))
-        print("  Layer 0: %d Kandidaten aus %d Seed(s) (kostenlos)" % (len(candidates), len(seeds)))
+        known = run.states(market, candidates)
+        if not args.include_rejected:
+            dropped = [k for k in candidates if known.get(k, {}).get("state") == "rejected"]
+            candidates = [k for k in candidates if k not in set(dropped)]
+            if dropped:
+                print("  %d bereits abgelehnt, uebersprungen" % len(dropped))
+        print("  %d Kandidaten gesamt" % len(candidates))
 
         est_sv, tasks = dfs.estimate_search_volume_cost(len(candidates))
-        print("  Layer 1: %d Task(s) -> geschaetzt %s" % (tasks, money(est_sv)))
+        print("  Layer 1: %d Task(s) -> %s" % (tasks, money(est_sv)))
         if not args.go:
-            print("  Layer 2: erst nach den Filtern bezifferbar (~%s je Keyword)"
+            print("  Layer 2: erst nach den Filtern bezifferbar (%s je Keyword)"
                   % money(dfs.estimate_serp_cost(1)))
-            print(rule("-", W))
+            print(rule("-"))
             print("  %sTrockenlauf.%s Mit --go tatsaechlich abrufen." % (BOLD, RST))
             return 0
 
@@ -90,103 +149,174 @@ def cmd_scout(args):
 
         funnel = Funnel(args.min_volume, args.max_volume, args.min_cpc)
         survivors = funnel.run(metrics)
-        print(rule("-", W))
+        print(rule("-"))
         print(table(funnel.report_rows(), [("stufe", "FILTER", 26, "l"),
                                            ("raus", "RAUS", 6, "r"),
-                                           ("uebrig", "UEBRIG", 7, "r")], W))
+                                           ("uebrig", "UEBRIG", 7, "r")]))
         if not survivors:
-            print("\n  Nichts ueberlebt die Filter. Seed zu eng oder zu kommerziell.")
-            print("\n" + cost_report(run, W))
+            print("\n  Nichts ueberlebt die Filter.\n\n" + cost_report(run))
             return 0
-
         if args.max_serp and len(survivors) > args.max_serp:
             survivors = sorted(survivors, key=lambda m: -(m.cpc or 0))[:args.max_serp]
-            print("  (auf die %d Ueberlebenden mit dem hoechsten CPC begrenzt)" % args.max_serp)
+            print("  auf die %d mit dem hoechsten CPC begrenzt" % args.max_serp)
 
-        est_serp = dfs.estimate_serp_cost(len(survivors))
-        print(rule("-", W))
-        print("  Layer 2: SERP fuer %d Ueberlebende -> %s%s"
-              % (len(survivors), money(est_serp), "  (live)" if args.live else "  (queue)"))
+        print(rule("-"))
+        print("  Layer 2: SERP fuer %d Ueberlebende -> %s"
+              % (len(survivors), money(dfs.estimate_serp_cost(len(survivors)))))
         serps = dfs.serp_batch([m.keyword for m in survivors], run)
 
+        # -- Seiten klassifizieren (kostet nichts ausser Zeit)
+        overrides = load_overrides()
+        targets, seen = [], set()
+        for s in serps.values():
+            for o in s["organics"]:
+                if o["url"] and o["url"] not in seen:
+                    seen.add(o["url"])
+                    targets.append({"domain": o["domain"], "url": o["url"]})
+        print("  Klassifikation: %d Seiten, %d Overrides aktiv"
+              % (len(targets), len(overrides)))
+        verdicts = _classify_cached(targets, overrides, run, args.workers)
+
+        for s in serps.values():
+            attach_verdicts(s, verdicts)
         incumbents = find_incumbents(serps, args.incumbent_share)
-        analysis = {k: analyse(v, incumbents) for k, v in serps.items() if v}
-        analysis = {k: v for k, v in analysis.items() if v}
-        print("  Platzhirsche im Set: %s" % (", ".join(sorted(incumbents)[:6]) or "keine"))
+        analysis = dict((k, analyse(v, incumbents)) for k, v in serps.items() if v)
+        analysis = dict((k, v) for k, v in analysis.items() if v)
+        n_thin = sum(1 for v in analysis.values() if v["difficulty"] is None)
+        print("  Platzhirsche: %s" % (", ".join(sorted(incumbents)[:6]) or "keine"))
+        if n_thin:
+            print("  %s%d Keywords ohne belastbare Difficulty -- werden zuerst gezeigt%s"
+                  % (DIM, n_thin, RST))
 
-        def diff_of(kw):
-            a = analysis.get(kw)
-            return a["difficulty"] if a else None
+        annotated = order(annotate_intent(survivors), lambda k: (analysis.get(k) or {}).get("difficulty"))
+        visible, sunk = split_tiers(annotated)
 
-        annotated = order(annotate_intent(survivors), diff_of)
-        blocks = [("STUFE 1-2  Werkzeugnot und Wechsel", [x for x in annotated if x[1] <= 2]),
-                  ("STUFE 3-4  Kaufabsicht und Orientierung", [x for x in annotated if x[1] > 2])]
+        rows = []
+        for m, lvl, name, _pat in annotated:
+            a = analysis.get(m.keyword) or {}
+            st = run.upsert_keyword(m.keyword, market, tier=lvl,
+                                    difficulty=a.get("difficulty"), cpc=m.cpc,
+                                    volume=m.search_volume, flags=" ".join(a.get("flags", [])))
+            prev = known.get(m.keyword, {})
+            rows.append(dict(m.to_dict(), tier=lvl, tier_name=name, serp=a or None,
+                             state=prev.get("state", st), note=prev.get("note", ""),
+                             market=market))
+        run.commit()
 
-        survivors = funnel.run_serp_stage(survivors, analysis, args.product_serp_only)
-        if args.product_serp_only:
-            print("  %d nach Aussortieren rein redaktioneller SERPs" % len(survivors))
-            annotated = order(annotate_intent(survivors), diff_of)
-            blocks = [("STUFE 1-2  Werkzeugnot und Wechsel",
-                       [x for x in annotated if x[1] <= 2]),
-                      ("STUFE 3-4  Kaufabsicht und Orientierung",
-                       [x for x in annotated if x[1] > 2])]
-
-        cols = [("kw", "KEYWORD", 38, "l"), ("lvl", "ST", 2, "r"),
-                ("diff", "DIFF", 4, "r"), ("viz", "", 10, "l"),
-                ("si", "SERP", 4, "l"), ("cpc", "CPC", 6, "r"),
-                ("vol", "VOL", 6, "r"), ("mix", "SERP-MIX", 14, "l"),
-                ("top", "PLATZHIRSCH", 18, "l")]
-        for title, rows_in in blocks:
+        cols = [("kw", "KEYWORD", 34, "l"), ("tier", "T", 1, "r"),
+                ("diff", "DIFF", 4, "r"), ("viz", "", 9, "l"),
+                ("si", "SERP", 4, "l"), ("sure", "SICH", 5, "r"),
+                ("flags", "SIGNALE", 20, "l"), ("cpc", "CPC", 6, "r"),
+                ("vol", "VOL", 6, "r"), ("top", "TOP-DOMAIN", 20, "l")]
+        for title, group in (("STUFE 1-3 UND OFFEN", visible), ("STUFE 4  Orientierung", sunk)):
+            if not group:
+                continue
             print()
             print("%s%s%s" % (BOLD, title, RST))
-            out = []
-            for m, lvl, _n, _p in rows_in[:args.top]:
-                a = analysis.get(m.keyword)
-                inc = [d for d in (a or {}).get("top_domains", []) if d in incumbents]
-                out.append({"kw": m.keyword, "lvl": lvl,
-                            "diff": a["difficulty"] if a else None,
-                            "viz": bar(a["difficulty"] if a else None, 100, 10),
-                            "cpc": m.cpc, "vol": m.search_volume,
-                            "si": (a or {}).get("serp_intent", ""),
-                            "mix": _mix_str(a["mix"]) if a else "",
-                            "top": inc[0] if inc else ((a or {}).get("top_domains") or [""])[0]})
-            print(table(out, cols, W))
+            print(table([_row(m, lvl, analysis, incumbents)
+                         for m, lvl, _n, _p in group[:args.top]], cols))
 
-        # Gratis-Ertrag: verwandte Suchen und PAA kamen in den SERPs schon mit
         bonus = []
         for v in serps.values():
             bonus += v.get("related", []) + v.get("paa", [])
         bonus = [b for b in dict.fromkeys(x.lower().strip() for x in bonus)
-                 if b not in {m.keyword for m in metrics}]
-        if bonus:
-            print()
-            print("  %d neue Kandidaten aus verwandten Suchen und PAA (bereits bezahlt)" % len(bonus))
-            print("  %s%s%s" % (DIM, ", ".join(bonus[:6]) + (" ..." if len(bonus) > 6 else ""), RST))
+                 if b not in set(m.keyword for m in metrics)]
 
+        queue = review_queue(analysis, serps)
         print()
-        print(cost_report(run, W))
+        print(cost_report(run))
 
-        payload = [dict(m.to_dict(), intent_level=lvl, intent=name,
-                        serp=analysis.get(m.keyword))
-                   for m, lvl, name, _p in annotated]
+        slug = _slug(label)
+        csv_path = write_csv(args.csv or ("reports/%s.csv" % slug), rows)
+        print("  -> %s  (%d Zeilen)" % (csv_path, len(rows)))
+        if queue:
+            q_path = write_review_csv(args.review_csv or ("reports/%s-pruefliste.csv" % slug), queue)
+            print("  -> %s  (%d unsichere Domains, Format von overrides.csv)"
+                  % (q_path, len(queue)))
+        if bonus and args.harvest:
+            open(args.harvest, "w", encoding="utf-8").write("\n".join(bonus) + "\n")
+            print("  -> %s  (%d Kandidaten fuer den naechsten Lauf)" % (args.harvest, len(bonus)))
         if args.json:
-            open(args.json, "w").write(json.dumps(payload, ensure_ascii=False, indent=2))
+            open(args.json, "w", encoding="utf-8").write(
+                json.dumps(rows, ensure_ascii=False, indent=2))
             print("  -> %s" % args.json)
-        if args.harvest and bonus:
-            # Die Ernte des einen Laufs ist die Saat des naechsten
-            with open(args.harvest, "w", encoding="utf-8") as fh:
-                fh.write("\n".join(bonus) + "\n")
-            print("  -> %s (%d Kandidaten fuer den naechsten Lauf)" % (args.harvest, len(bonus)))
         if args.report:
             from .report import write_report
-            path = write_report(args.report, seeds, payload, funnel, run,
-                                incumbents, bonus)
-            print("  -> %s" % path)
+            print("  -> %s" % write_report(args.report, [label], rows, funnel, run,
+                                           incumbents, bonus))
     return 0
 
 
+def _classify_cached(targets, overrides, run, workers):
+    """Klassifikation mit Cache -- ein zweiter Lauf ruft keine Seite erneut ab."""
+    from .classify import classify_many
+    cache = {}
+    for t in targets:
+        hit = run.cache_get("page", t["url"], ttl_days=30)
+        if hit is not None:
+            cache[t["url"]] = hit
+    out = classify_many(targets, overrides, workers=workers, cache=cache)
+    for url, v in out.items():
+        if url not in cache:
+            run.cache_put("page", url, v)
+    run.commit()
+    return out
+
+
+def _row(m, lvl, analysis, incumbents):
+    a = analysis.get(m.keyword) or {}
+    d = a.get("difficulty")
+    inc = [x for x in a.get("top_domains", []) if x in incumbents]
+    return {"kw": m.keyword, "tier": lvl, "diff": d, "viz": bar(d, 100, 9),
+            "si": a.get("serp_intent", ""),
+            "sure": "%d/%d" % (a.get("sure", 0), a.get("sure", 0) + a.get("unsure", 0)),
+            "flags": " ".join(a.get("flags", [])),
+            "cpc": m.cpc, "vol": m.search_volume,
+            "top": inc[0] if inc else ((a.get("top_domains") or [""])[0])}
+
+
+# -- review -------------------------------------------------------------------
+def cmd_review(args):
+    market = Config.market()
+    if args.state and args.keyword:
+        with Run(seed="review", budget_usd=0.0) as run:
+            ok = run.set_state(args.keyword.lower(), market, args.state, args.note)
+        print("  %s -> %s%s" % (args.keyword, args.state,
+                                "" if ok else "  (Keyword unbekannt)"))
+        return 0 if ok else 1
+    rows = keyword_rows(market, args.filter_state, args.limit)
+    print(head("KEYWORDS  markt=%s%s" % (market, "  state=%s" % args.filter_state
+                                         if args.filter_state else "")))
+    print(table([{"kw": r["keyword"], "t": r["tier"], "d": r["difficulty"],
+                  "cpc": r["cpc"], "vol": r["volume"], "st": r["state"],
+                  "fl": r["flags"], "note": r["note"]} for r in rows],
+                [("kw", "KEYWORD", 36, "l"), ("t", "T", 1, "r"), ("d", "DIFF", 4, "r"),
+                 ("cpc", "CPC", 6, "r"), ("vol", "VOL", 6, "r"),
+                 ("st", "STATE", 11, "l"), ("fl", "SIGNALE", 18, "l"),
+                 ("note", "NOTIZ", 20, "l")]))
+    print(rule("-"))
+    print("  " + "  ".join("%s=%d" % kv for kv in sorted(state_counts(market).items())))
+    return 0
+
+
+# -- queue --------------------------------------------------------------------
+def cmd_queue(args):
+    from .classify import OVERRIDES_PATH, add_override, load_overrides
+    if args.domain and args.type:
+        print("  -> %s" % add_override(args.domain, args.type, args.note or ""))
+        return 0
+    ov = load_overrides()
+    print(head("OVERRIDES  %d Eintraege" % len(ov)))
+    for dom, (kind, note) in sorted(ov.items()):
+        print("  %-30s %-12s %s" % (dom, kind, note))
+    print(rule("-"))
+    print("  Datei: %s" % OVERRIDES_PATH)
+    print("  Direkt editierbar, oder: keyworld queue --domain X --type product")
+    return 0
+
+
+# -- costs / fetch ------------------------------------------------------------
 def cmd_fetch(args):
-    """Sammelt bezahlte, aber nicht abgeholte Queue-Tasks ein. Kostenlos."""
     from .providers import DataForSEO
     from .store import open_tasks
     tasks = open_tasks()
@@ -200,8 +330,8 @@ def cmd_fetch(args):
         for t in tasks:
             metrics, done = dfs.collect(t, run)
             total += len(metrics)
-            print("  %s  %-28s %5d Keywords  %s (bezahlt: $%.4f)"
-                  % (t["task_id"][:18], t["path_base"].split("/")[-1], len(metrics),
+            print("  %s  %5d Keywords  %s (bezahlt: $%.4f)"
+                  % (t["task_id"][:18], len(metrics),
                      "OK" if done else "noch in Queue", t["cost_usd"]))
         print(rule("-"))
         print("  %d Keywords in den Cache geholt fuer $0.0000" % total)
@@ -210,76 +340,97 @@ def cmd_fetch(args):
 
 def cmd_costs(args):
     if args.run:
-        conn = Run.__new__(Run)
         from .store import connect
-        conn.conn, conn.run_id, conn.seed = connect(), args.run, ""
-        conn.budget = Config.run_budget_usd
-        print(cost_report(conn))
+        shim = Run.__new__(Run)
+        shim.conn, shim.run_id, shim.seed = connect(), args.run, ""
+        shim.budget = Config.run_budget_usd
+        print(cost_report(shim))
         return 0
     print(head("RUNS"))
-    rows = [{"run_id": r["run_id"], "seed": r["seed"], "market": r["market"],
-             "calls": r["calls"], "cost": r["cost"], "status": r["status"]}
-            for r in all_runs(args.limit)]
-    print(table(rows, [("run_id", "RUN", 13, "l"), ("seed", "SEED", 22, "l"),
-                       ("market", "MARKT", 9, "l"), ("calls", "CALLS", 5, "r"),
-                       ("cost", "USD", 8, "r"), ("status", "STATUS", 7, "l")]))
+    print(table([{"run_id": r["run_id"], "seed": r["seed"], "calls": r["calls"],
+                  "cost": r["cost"], "status": r["status"]} for r in all_runs(args.limit)],
+                [("run_id", "RUN", 13, "l"), ("seed", "SEED", 30, "l"),
+                 ("calls", "CALLS", 5, "r"), ("cost", "USD", 8, "r"),
+                 ("status", "STATUS", 7, "l")]))
     spent, saved, calls = lifetime_cost()
     print(rule("-"))
     print("  Gesamt: %s ueber %d Calls | durch Cache gespart: $%.4f" % (money(spent), calls, saved))
     return 0
 
 
+# -- main ---------------------------------------------------------------------
 def main(argv=None):
-    p = argparse.ArgumentParser(prog="keyworld", description="Keyword-Opportunity-Scouting")
+    p = argparse.ArgumentParser(prog="keyworld", description="Nischen-Scouting")
     sub = p.add_subparsers(dest="cmd")
 
-    sub.add_parser("probe", help="Verbindung und Guthaben pruefen").set_defaults(fn=cmd_probe)
+    sub.add_parser("probe", help="Verbindung und Guthaben").set_defaults(fn=cmd_probe)
 
-    d = sub.add_parser("discover", help="Layer 0: kostenlose Kandidaten")
+    g = sub.add_parser("gen", help="Themengebiete x Muster -> Keywords")
+    g.add_argument("domain", nargs="*", default=[])
+    g.add_argument("--domains", help="Datei mit Themengebieten")
+    g.add_argument("--patterns", help="Datei mit Mustern (Default data/patterns.txt)")
+    g.add_argument("--out")
+    g.set_defaults(fn=cmd_gen)
+
+    d = sub.add_parser("discover", help="Autocomplete-Kandidaten, kostenlos")
     d.add_argument("seed")
     d.add_argument("--limit", type=int, default=500)
-    d.add_argument("--deep", action="store_true", help="zusaetzlich a-z Alphabet-Suffixe")
-    d.add_argument("--json", help="Ergebnis als JSON speichern")
+    d.add_argument("--deep", action="store_true")
+    d.add_argument("--out")
     d.set_defaults(fn=cmd_discover)
 
-    s = sub.add_parser("scout", help="Vollstaendiger Lauf: Discovery, Metriken, SERP")
-    s.add_argument("seed", nargs="*", default=[], help="ein oder mehrere Seeds")
-    s.add_argument("--seeds-file", help="Seeds aus Datei, eine je Zeile")
-    s.add_argument("--harvest", help="verwandte Suchen und PAA als Seed-Datei schreiben")
-    s.add_argument("--go", action="store_true", help="wirklich abrufen (sonst Trockenlauf)")
+    s = sub.add_parser("scout", help="Kompletter Lauf -> CSV-Shortlist")
+    s.add_argument("--domain", action="append", default=[], help="Themengebiet (mehrfach)")
+    s.add_argument("--domains", help="Datei mit Themengebieten")
+    s.add_argument("--patterns", help="Datei mit Mustern")
+    s.add_argument("--keywords-file", help="fertige Keywords, eine je Zeile")
+    s.add_argument("--seed", action="append", default=[], help="Autocomplete-Seed (mehrfach)")
+    s.add_argument("--go", action="store_true", help="wirklich abrufen")
     s.add_argument("--limit", type=int, default=500)
-    s.add_argument("--top", type=int, default=40)
-    s.add_argument("--min-volume", type=int, default=300,
-                   help="darunter raus (Default 300)")
-    s.add_argument("--max-volume", type=int, default=10000,
-                   help="darueber raus, dort sitzt schon jemand mit Budget")
-    s.add_argument("--min-cpc", type=float, default=0.50,
-                   help="darunter raus, Informationssuche")
+    s.add_argument("--top", type=int, default=30)
+    s.add_argument("--min-volume", type=int, default=300)
+    s.add_argument("--max-volume", type=int, default=10000)
+    s.add_argument("--min-cpc", type=float, default=0.50)
     s.add_argument("--budget", type=float, default=Config.run_budget_usd)
-    s.add_argument("--live", action="store_true",
-                   help="Live-Modus: schneller, aber gut 3x teurer")
-    s.add_argument("--max-serp", type=int, default=120,
-                   help="Deckel fuer Layer 2, nimmt die hoechsten CPCs")
-    s.add_argument("--incumbent-share", type=float, default=0.25,
-                   help="ab welchem Anteil der SERPs eine Domain als Platzhirsch gilt")
-    s.add_argument("--product-serp-only", action="store_true",
-                   help="SERPs ohne jede Produktseite aussortieren (RED)")
-    s.add_argument("--report", help="HTML-Report schreiben")
+    s.add_argument("--live", action="store_true")
+    s.add_argument("--max-serp", type=int, default=120)
+    s.add_argument("--incumbent-share", type=float, default=0.25)
+    s.add_argument("--workers", type=int, default=8)
+    s.add_argument("--include-rejected", action="store_true")
     s.add_argument("--deep", action="store_true")
+    s.add_argument("--csv")
+    s.add_argument("--review-csv")
+    s.add_argument("--harvest")
     s.add_argument("--json")
+    s.add_argument("--report", help="HTML, niedrigste Prioritaet")
     s.set_defaults(fn=cmd_scout)
 
-    f = sub.add_parser("fetch", help="Offene Queue-Tasks einsammeln (kostenlos)")
-    f.set_defaults(fn=cmd_fetch)
+    r = sub.add_parser("review", help="Zustand und Notiz je Keyword")
+    r.add_argument("keyword", nargs="?")
+    r.add_argument("--state", choices=STATES)
+    r.add_argument("--note")
+    r.add_argument("--filter-state", choices=STATES)
+    r.add_argument("--limit", type=int, default=60)
+    r.set_defaults(fn=cmd_review)
+
+    q = sub.add_parser("queue", help="Overrides anzeigen oder ergaenzen")
+    q.add_argument("--domain")
+    q.add_argument("--type", choices=("product", "article", "forum",
+                                      "marketplace", "aggregator"))
+    q.add_argument("--note")
+    q.set_defaults(fn=cmd_queue)
 
     c = sub.add_parser("costs", help="Ausgabenuebersicht")
-    c.add_argument("--run", help="Detailansicht fuer eine Run-ID")
+    c.add_argument("--run")
     c.add_argument("--limit", type=int, default=20)
     c.set_defaults(fn=cmd_costs)
 
+    sub.add_parser("fetch", help="Offene Queue-Tasks einsammeln").set_defaults(fn=cmd_fetch)
+
     args = p.parse_args(argv)
-    if getattr(args, "cmd", None) == "scout" and not args.seed and not args.seeds_file:
-        p.error("scout braucht mindestens einen Seed oder --seeds-file")
+    if getattr(args, "cmd", None) == "scout" and not (
+            args.domain or args.domains or args.seed or args.keywords_file):
+        p.error("scout braucht --domain, --domains, --seed oder --keywords-file")
     if not getattr(args, "fn", None):
         p.print_help()
         return 0

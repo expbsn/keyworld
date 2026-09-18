@@ -1,0 +1,35 @@
+# Muster fuer den kartesischen Generator. {d} = Themengebiet.
+# Nach Absichtsstufe gruppiert -- die Stufe ergibt sich beim Scouten
+# aus dem Muster selbst (siehe intent.py).
+
+# -- Stufe 1  Werkzeugnot ----------------------------------------------
+{d} in excel
+{d} excel vorlage
+{d} vorlage
+{d} automatisieren
+{d} automatisch erstellen
+{d} konvertieren
+{d} exportieren
+{d} extrahieren
+{d} stapelweise
+{d} selber machen
+
+# -- Stufe 2  Frust ----------------------------------------------------
+alternative zu {d}
+{d} alternative
+{d} zu teuer
+{d} kuendigen
+{d} funktioniert nicht
+guenstige alternative {d}
+
+# -- Stufe 3  Pflicht --------------------------------------------------
+{d} pflicht 2026
+{d} vorgeschrieben
+{d} nachweis erstellen
+{d} dokumentationspflicht
+{d} frist
+
+# -- Stufe 4  Orientierung (sinkt, aber zur Marktvermessung nuetzlich) --
+beste {d} app
+wie funktioniert {d}
+was ist {d}

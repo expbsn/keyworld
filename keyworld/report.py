@@ -122,25 +122,25 @@ def _rows(items, incumbents):
             '<td class="dim">%s</td>'
             '<td class="%s">%s</td>'
             "</tr>" % (
-                _e(r["keyword"]), r["intent_level"], r["intent_level"], r["intent_level"],
+                _e(r["keyword"]), r["tier"], r["tier"], r["tier"],
                 "" if d is None else d, _bar(d),
                 r.get("cpc") or 0, ("%.2f" % r["cpc"]) if r.get("cpc") else "-",
                 r.get("search_volume") or 0, r.get("search_volume") or "-",
                 '<span class="si si-%s">%s</span>' % (s.get("serp_intent", ""),
                                                       s.get("serp_intent", "-")),
-                _e(_mix(s.get("mix", {}))),
+                _e(" ".join(s.get("flags", []))),
                 "dim" if top not in incumbents else "", _e(top)))
     return "\n".join(out)
 
 
 TABLE_HEAD = ("<thead><tr><th>Keyword</th><th>St</th><th>Difficulty</th>"
-              "<th>CPC</th><th>Vol</th><th>SERP</th><th>SERP-Mix</th><th>Platzhirsch</th>"
+              "<th>CPC</th><th>Vol</th><th>SERP</th><th>Signale</th><th>Platzhirsch</th>"
               "</tr></thead>")
 
 
 def write_report(path, seeds, items, funnel, run, incumbents, bonus):
-    a = [r for r in items if r["intent_level"] <= 2]
-    b = [r for r in items if r["intent_level"] > 2]
+    a = [r for r in items if r["tier"] != 4]
+    b = [r for r in items if r["tier"] == 4]
     known = [r for r in items if (r.get("serp") or {}).get("difficulty") is not None]
     easiest = min((r["serp"]["difficulty"] for r in known), default=None)
 
@@ -162,7 +162,7 @@ def write_report(path, seeds, items, funnel, run, incumbents, bonus):
 
 <div class="grid">
  <div class="kpi"><span>Ueberlebende</span><b>%(n)d</b></div>
- <div class="kpi"><span>Stufe 1-2</span><b>%(na)d</b></div>
+ <div class="kpi"><span>Stufe 1-3</span><b>%(na)d</b></div>
  <div class="kpi"><span>Leichtestes</span><b>%(easy)s</b></div>
  <div class="kpi"><span>Ausgegeben</span><b>$%(cost).4f</b></div>
  <div class="kpi"><span>Gespart (Cache)</span><b>$%(saved).4f</b></div>
@@ -172,10 +172,10 @@ def write_report(path, seeds, items, funnel, run, incumbents, bonus):
 <div class="tblwrap"><table><thead><tr><th>Filter</th><th>Raus</th><th>Uebrig</th></tr></thead>
 <tbody>%(funnel)s</tbody></table></div>
 
-<h2>Stufe 1-2 &middot; Werkzeugnot und Wechsel</h2>
+<h2>Stufe 1-3 und Offen</h2>
 <div class="tblwrap"><table class="kw">%(th)s<tbody>%(rows_a)s</tbody></table></div>
 
-<h2>Stufe 3-4 &middot; Kaufabsicht und Orientierung</h2>
+<h2>Stufe 4 &middot; Orientierung</h2>
 <div class="tblwrap"><table class="kw">%(th)s<tbody>%(rows_b)s</tbody></table></div>
 
 <h2>Platzhirsche</h2>
