@@ -147,6 +147,27 @@ def find_incumbents(serps, min_share=0.25):
     return set(d for d, c in seen.items() if c >= cutoff)
 
 
+def find_incumbents_grouped(serps, groups, min_share=0.25):
+    """Platzhirsche JE THEMENGEBIET statt je Lauf.
+
+    Ueber 40 unzusammenhaengende Gebiete erreicht keine Domain 25 % aller
+    SERPs -- der Term faellt aus der Formel und die Sortierachse kollabiert.
+    Innerhalb eines Gebiets ist die Frage dagegen genau die richtige:
+    sitzt hier jemand auf allen Plaetzen?
+
+    groups: {keyword: gebiet}. -> {keyword: set(domains)}
+    """
+    by_group = {}
+    for kw, s in serps.items():
+        by_group.setdefault(groups.get(kw, kw), {})[kw] = s
+    out = {}
+    for _g, members in by_group.items():
+        inc = find_incumbents(members, min_share)
+        for kw in members:
+            out[kw] = inc
+    return out
+
+
 def review_queue(analysis, serps):
     """Domains, deren Einstufung unsicher ist -- Kandidaten fuer overrides.csv."""
     counts = Counter()

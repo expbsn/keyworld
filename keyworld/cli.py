@@ -112,7 +112,8 @@ def cmd_scout(args):
     from .export import write_csv, write_review_csv
     from .filters import Funnel, annotate_intent, order, split_tiers
     from .providers import DataForSEO
-    from .serp import analyse, attach_verdicts, find_incumbents, review_queue
+    from .serp import (analyse, attach_verdicts, find_incumbents,
+                       find_incumbents_grouped, review_queue)
 
     if not Config.has_dataforseo():
         print("  Keine DataForSEO-Credentials -- siehe .env.example", file=sys.stderr)
@@ -136,8 +137,13 @@ def cmd_scout(args):
                 print("  %d bereits abgelehnt, uebersprungen" % len(dropped))
         print("  %d Kandidaten gesamt" % len(candidates))
 
-        est_sv, tasks = dfs.estimate_search_volume_cost(len(candidates))
-        print("  Layer 1: %d Task(s) -> %s" % (tasks, money(est_sv)))
+        # Schaetzung nur auf das, was NICHT im Cache liegt -- sonst zeigt der
+        # Trockenlauf Kosten an, die gar nicht anfallen.
+        fresh = [k for k in candidates if run.cache_get(dfs.name, k) is None]
+        est_sv, tasks = dfs.estimate_search_volume_cost(len(fresh))
+        if len(fresh) < len(candidates):
+            print("  %d im Cache, %d neu abzurufen" % (len(candidates) - len(fresh), len(fresh)))
+        print("  Layer 1: %d Task(s) -> %s" % (tasks, money(est_sv) if fresh else money(0.0)))
         if not args.go:
             print("  Layer 2: erst nach den Filtern bezifferbar (%s je Keyword)"
                   % money(dfs.estimate_serp_cost(1)))
@@ -179,8 +185,12 @@ def cmd_scout(args):
 
         for s in serps.values():
             attach_verdicts(s, verdicts)
-        incumbents = find_incumbents(serps, args.incumbent_share)
-        analysis = dict((k, analyse(v, incumbents)) for k, v in serps.items() if v)
+        # Platzhirsche je Themengebiet, nicht je Lauf
+        subjects = _subject_map(args, list(serps))
+        inc_map = find_incumbents_grouped(serps, subjects, args.incumbent_share)
+        incumbents = set().union(*inc_map.values()) if inc_map else set()
+        analysis = dict((k, analyse(v, inc_map.get(k, set())))
+                        for k, v in serps.items() if v)
         analysis = dict((k, v) for k, v in analysis.items() if v)
         n_thin = sum(1 for v in analysis.values() if v["difficulty"] is None)
         print("  Platzhirsche: %s" % (", ".join(sorted(incumbents)[:6]) or "keine"))
@@ -245,6 +255,17 @@ def cmd_scout(args):
             print("  -> %s" % write_report(args.report, [label], rows, funnel, run,
                                            incumbents, bonus))
     return 0
+
+
+def _subject_map(args, keywords):
+    """Ordnet jedes Keyword seinem Themengebiet zu -- laengste Uebereinstimmung."""
+    from .generate import read_list
+    subjects = list(args.domain) + (read_list(args.domains) if args.domains else [])
+    subjects = sorted((s.strip().lower() for s in subjects), key=len, reverse=True)
+    out = {}
+    for kw in keywords:
+        out[kw] = next((s for s in subjects if s in kw), kw)
+    return out
 
 
 def _classify_cached(targets, overrides, run, workers):

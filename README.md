@@ -65,14 +65,34 @@ verstecken.
 Aus dem Keyword-Muster, deterministisch, nachlesbar in `intent.py`.
 Erste Spalte, nicht Teil eines Scores.
 
-    1  Werkzeugnot   "in excel", "vorlage", "automatisieren", "konvertieren",
-                     "exportieren", "extrahieren", "stapelweise"
-    2  Frust         "alternative zu", "zu teuer", "kuendigen",
-                     "funktioniert nicht", "guenstige alternative"
+    1  Werkzeugnot   "in excel", "vorlage", "muster", "automatisieren",
+                     "konvertieren", "exportieren", "extrahieren"
+    2  Frust/Preis   "alternative", "zu teuer", "kuendigen", "preise",
+                     "kosten", "abo", "lizenz"  -- Preisrecherche zu einem
+                     konkreten Produkt ist Wechselabsicht
     3  Pflicht       "pflicht 2026", "vorgeschrieben", "nachweis erstellen",
                      "dokumentationspflicht", "frist"
     4  Orientierung  "beste X app", "wie funktioniert", "was ist"   -> sinkt
     0  Offen         kein Muster getroffen                          -> sichtbar
+
+## Zwei Listen, nicht eine
+
+Gemessen ueber 1359 Keywords: Stufe-1-Muster brauchen AUFGABEN als
+Themengebiet, Stufe-2-Muster brauchen PRODUKTNAMEN.
+
+    data/domains.txt   Aufgaben    -> {d} vorlage, {d} in excel, {d} app
+    data/brands.txt    Produkte    -> {d} alternative, {d} preise
+
+"alternative zu kassenbuch" sucht niemand, "trello alternative" schon.
+Marken sind fast dreimal so ergiebig (8,3 % ueber der Volumenschwelle
+gegen 3,0 % bei Aufgaben).
+
+Wortstellung entscheidet: `{d} alternative` liefert, `alternative zu {d}`
+liefert nichts. Im Deutschen wird nachgestellt gesucht.
+
+Tote Muster kosten nichts -- 120 und 1360 Keywords kosten beide 0,06 $
+je Task. Es gibt also keinen Grund, ein Muster zu loeschen, nur einen
+Grund, eines hinzuzufuegen.
 
 ## Schwaechesignale
 

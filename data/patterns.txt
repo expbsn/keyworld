@@ -29,6 +29,20 @@ guenstige alternative {d}
 {d} dokumentationspflicht
 {d} frist
 
+# -- Ergaenzt nach Messung: Varianten mit tatsaechlichem Suchvolumen -----
+# Tote Muster kosten nichts (1000 Keywords = 1 Task = 0,06 $), also wird
+# nichts geloescht -- nur ergaenzt.
+{d} muster
+{d} vorlage kostenlos
+{d} vorlage word
+{d} software
+{d} app
+{d} programm
+{d} kostenlos
+{d} online
+{d} erstellen
+{d} digital
+
 # -- Stufe 4  Orientierung (sinkt, aber zur Marktvermessung nuetzlich) --
 beste {d} app
 wie funktioniert {d}

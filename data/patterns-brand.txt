@@ -1,0 +1,7 @@
+# Stufe 2: Frust und Wechsel. Setzen einen Produktnamen voraus.
+alternative zu {d}
+{d} alternative
+{d} zu teuer
+{d} kuendigen
+{d} preise
+{d} erfahrungen

@@ -20,14 +20,19 @@ LADDER = {
         r"konvertier", r"\bumwandeln\b", r"exportier", r"extrahier",
         r"stapelweise", r"\bbatch\b", r"massenhaft", r"\bmakro\b", r"\bformel\b",
         r"selber (machen|bauen|erstellen|schreiben)", r"per hand", r"\bmanuell",
-        r"\bvorlage\b", r"\btemplate\b",
+        r"\bvorlage\b", r"\btemplate\b", r"\bmuster\b", r"\bformular\b",
     ]),
-    2: ("Frust", [
+    2: ("Frust und Preis", [
         r"alternative", r"zu teuer", r"\bkuendig", r"\bkündig",
         r"funktioniert nicht", r"geht nicht", r"\bproblem",
         r"g(ue|ü)nstige[rs]? alternative", r"\bersatz\b", r"\bstatt\b",
         r"\bvs\b", r"\bvs\.", r"weg von", r"umstieg", r"migration",
         r"\bnervt\b", r"\blahm\b", r"\bzu kompliziert\b",
+        # Preisrecherche zu einem konkreten Produkt ist Wechselabsicht.
+        # Wortgrenzen sind hier entscheidend: "nebenkostenabrechnung" und
+        # "kostenlos" duerfen NICHT feuern.
+        r"\bpreise?\b", r"\bkosten\b", r"\bkostet\b", r"\babo\b",
+        r"\blizenz", r"\btarif", r"was kostet",
     ]),
     3: ("Pflicht", [
         r"pflicht", r"vorgeschrieben", r"verpflichtend", r"gesetzlich",
