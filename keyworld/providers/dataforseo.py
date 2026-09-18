@@ -22,6 +22,9 @@ MAX_SEEDS_FOR_IDEAS = 20        # keywords_for_keywords
 MAX_KW_PER_KD = 1000            # bulk_keyword_difficulty
 KD_REQUEST_COST = 0.012         # Fixkosten pro Request
 KD_ITEM_COST = 0.00012          # je Keyword
+MAX_SERP_TASKS = 100            # Tasks pro task_post
+SERP_LIVE_COST = 0.002          # je Keyword, Antwort in Sekunden
+SERP_QUEUED_COST = 0.0006       # je Keyword, Standard-Queue
 
 
 class DataForSEOError(RuntimeError):
@@ -254,6 +257,93 @@ class DataForSEO(MetricsProvider):
             run.charge(self.name, "keyword_difficulty", layer, len(chunk),
                        float(data.get("cost") or 0.0),
                        note="%d Keywords -> %d Werte" % (len(chunk), len(items)))
+            run.commit()
+        return out
+
+    def estimate_serp_cost(self, n_keywords):
+        return n_keywords * (SERP_LIVE_COST if self.live else SERP_QUEUED_COST)
+
+    def _poll_many(self, path_base, task_ids, run, max_wait=600):
+        """Holt viele Queue-Tasks ab. task_get ist kostenlos."""
+        pending, out = dict(task_ids), {}
+        waited, interval = 0.0, 8.0
+        while pending and waited < max_wait:
+            time.sleep(interval)
+            waited += interval
+            for tid in list(pending):
+                data = self._get("%s/task_get/advanced/%s" % (path_base, tid))
+                task = (data.get("tasks") or [{}])[0]
+                code = task.get("status_code")
+                if code == 20000:
+                    for res in task.get("result") or []:
+                        out[pending[tid]] = res
+                    run.mark_fetched(tid)
+                    pending.pop(tid)
+                elif code not in (40601, 40602, 20100):
+                    pending.pop(tid)      # dauerhafter Fehler, nicht weiter pollen
+            interval = min(interval * 1.3, 30.0)
+        return out
+
+    def serp_batch(self, keywords, run, layer="L2", depth=10):
+        """Top-10 SERP je Keyword. -> {keyword: geparste_serp}"""
+        from ..serp import parse_serp
+        keywords = list(dict.fromkeys(k.strip().lower() for k in keywords if k and k.strip()))
+        if not keywords:
+            return {}
+
+        out, misses = {}, []
+        for kw in keywords:
+            hit = run.cache_get("%s:serp" % self.name, kw, ttl_days=14)
+            if hit is not None:
+                out[kw] = hit
+            else:
+                misses.append(kw)
+
+        if out:
+            run.charge(self.name, "serp", layer, len(out), self.estimate_serp_cost(len(out)),
+                       cached=True, note="%d Cache-Treffer" % len(out))
+        if not misses:
+            return out
+
+        est = self.estimate_serp_cost(len(misses))
+        if run.would_exceed(est):
+            raise DataForSEOError(
+                "Abbruch: SERP fuer %d Keywords kostet ~%.4f USD, Budget-Rest %.4f USD"
+                % (len(misses), est, run.budget - run.total_cost()))
+
+        base = "serp/google/organic"
+        def task(kw):
+            return {"keyword": kw, "location_code": Config.location_code,
+                    "language_code": Config.language_code, "device": "desktop",
+                    "depth": depth}
+
+        if self.live:
+            for kw in misses:
+                data = self._post("%s/live/advanced" % base, [task(kw)])
+                for res in self._results(data):
+                    out[kw] = parse_serp(res)
+                    run.cache_put("%s:serp" % self.name, kw, out[kw])
+                run.charge(self.name, "serp", layer, 1, float(data.get("cost") or 0.0),
+                           note=kw)
+                run.commit()
+            return out
+
+        for i in range(0, len(misses), MAX_SERP_TASKS):
+            chunk = misses[i:i + MAX_SERP_TASKS]
+            data = self._post("%s/task_post" % base, [task(k) for k in chunk])
+            billed = float(data.get("cost") or 0.0)
+            ids = {}
+            for t, kw in zip(data.get("tasks") or [], chunk):
+                if t.get("id"):
+                    ids[t["id"]] = kw
+                    run.add_pending(t["id"], self.name, base, layer,
+                                    billed / max(1, len(chunk)), 1)
+            run.charge(self.name, "serp", layer, len(chunk), billed,
+                       note="%d SERPs angefordert" % len(chunk))
+            got = self._poll_many(base, ids, run)
+            for kw, res in got.items():
+                out[kw] = parse_serp(res)
+                run.cache_put("%s:serp" % self.name, kw, out[kw])
             run.commit()
         return out
 

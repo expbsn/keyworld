@@ -2,6 +2,7 @@
 import os
 import sys
 
+W = 108
 _TTY = sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
 DIM = "\033[2m" if _TTY else ""
 BOLD = "\033[1m" if _TTY else ""
@@ -11,15 +12,15 @@ YEL = "\033[33m" if _TTY else ""
 RED = "\033[31m" if _TTY else ""
 
 
-def rule(char="-", width=78):
+def rule(char="-", width=W):
     return char * width
 
 
-def head(title, width=78):
+def head(title, width=W):
     return "%s%s%s\n%s" % (BOLD, title, RST, rule("=", width))
 
 
-def table(rows, cols, width=78):
+def table(rows, cols, width=W):
     """rows: List[dict], cols: List[(key, label, width, align)]"""
     if not rows:
         return DIM + "  (keine Daten)" + RST
@@ -48,7 +49,7 @@ def money(v):
     return "%s$%.4f%s" % (GRN if v == 0 else YEL, v, RST)
 
 
-def cost_report(run, width=78):
+def cost_report(run, width=W):
     """Transparente Ausgabenuebersicht fuer einen Run."""
     lines = [head("AUSGABEN  run=%s  seed=%s" % (run.run_id, run.seed or "-"), width)]
     rows = run.breakdown()

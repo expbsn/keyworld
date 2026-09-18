@@ -32,6 +32,17 @@ class Funnel:
         self.stages[label] = {"raus": before - len(survivors), "uebrig": len(survivors)}
         return survivors
 
+    def run_serp_stage(self, metrics, analysis, require_product_serp=False):
+        """Vierte Stufe, erst nach Layer 2 moeglich: SERPs ohne jede Produktseite.
+
+        Standardmaessig nur markiert, nicht gefiltert -- die Entscheidung
+        gehoert dem Nutzer, nicht dem Tool.
+        """
+        if not require_product_serp:
+            return list(metrics)
+        keep = lambda m: (analysis.get(m.keyword) or {}).get("serp_intent") != "RED"
+        return self._step("SERP ohne Produktseiten", list(metrics), keep)
+
     def run(self, metrics):
         items = list(metrics)
         self.stages["Kandidaten"] = {"raus": 0, "uebrig": len(items)}
