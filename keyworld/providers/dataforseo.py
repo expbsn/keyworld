@@ -19,6 +19,9 @@ from .base import KeywordMetrics, MetricsProvider
 BASE = "https://api.dataforseo.com/v3"
 MAX_KW_PER_TASK = 1000          # Search Volume
 MAX_SEEDS_FOR_IDEAS = 20        # keywords_for_keywords
+MAX_KW_PER_KD = 1000            # bulk_keyword_difficulty
+KD_REQUEST_COST = 0.012         # Fixkosten pro Request
+KD_ITEM_COST = 0.00012          # je Keyword
 
 
 class DataForSEOError(RuntimeError):
@@ -200,6 +203,59 @@ class DataForSEO(MetricsProvider):
             run.commit()
 
         return results
+
+    def estimate_difficulty_cost(self, n_keywords):
+        reqs = max(1, math.ceil(n_keywords / MAX_KW_PER_KD))
+        return reqs * KD_REQUEST_COST + n_keywords * KD_ITEM_COST, reqs
+
+    def keyword_difficulty(self, keywords, run, layer="L2"):
+        """Difficulty 0-100 fuer bereits gefilterte Keywords. -> {keyword: kd}"""
+        keywords = list(dict.fromkeys(k.strip().lower() for k in keywords if k and k.strip()))
+        if not keywords:
+            return {}
+
+        out, misses = {}, []
+        for kw in keywords:
+            hit = run.cache_get("%s:kd" % self.name, kw)
+            if hit is not None:
+                # 0 heisst bei DataForSEO "keine SERP-Daten", nicht "trivial".
+                # Als Unbekannt fuehren, sonst vergiftet es jede aufsteigende Sortierung.
+                out[kw] = hit.get("keyword_difficulty") or None
+            else:
+                misses.append(kw)
+
+        if len(out):
+            saved, _ = self.estimate_difficulty_cost(len(out))
+            run.charge(self.name, "keyword_difficulty", layer, len(out), saved,
+                       cached=True, note="%d Cache-Treffer" % len(out))
+        if not misses:
+            return out
+
+        est, _ = self.estimate_difficulty_cost(len(misses))
+        if run.would_exceed(est):
+            raise DataForSEOError(
+                "Abbruch: Difficulty fuer %d Keywords kostet ~%.4f USD, Budget-Rest %.4f USD"
+                % (len(misses), est, run.budget - run.total_cost()))
+
+        for i in range(0, len(misses), MAX_KW_PER_KD):
+            chunk = misses[i:i + MAX_KW_PER_KD]
+            payload = [{"keywords": chunk,
+                        "location_code": Config.location_code,
+                        "language_code": Config.language_code}]
+            data = self._post("dataforseo_labs/google/bulk_keyword_difficulty/live", payload)
+            items = []
+            for block in self._results(data):
+                items.extend(block.get("items") or [])
+            for it in items:
+                kw = (it.get("keyword") or "").strip().lower()
+                kd = it.get("keyword_difficulty")
+                out[kw] = kd or None
+                run.cache_put("%s:kd" % self.name, kw, {"keyword_difficulty": kd})
+            run.charge(self.name, "keyword_difficulty", layer, len(chunk),
+                       float(data.get("cost") or 0.0),
+                       note="%d Keywords -> %d Werte" % (len(chunk), len(items)))
+            run.commit()
+        return out
 
     def collect(self, task, run):
         """Sammelt einen bereits bezahlten Queue-Task ein. Kostet nichts."""

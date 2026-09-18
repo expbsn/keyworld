@@ -45,6 +45,7 @@ def cmd_discover(args):
 
 
 def cmd_scout(args):
+    from .filters import Funnel, annotate_intent, order
     from .providers import DataForSEO, FreeDiscovery
     if not Config.has_dataforseo():
         print("  Keine DataForSEO-Credentials -- siehe .env.example", file=sys.stderr)
@@ -56,36 +57,57 @@ def cmd_scout(args):
         print(head("SCOUT  seed=%s  markt=%s" % (args.seed, Config.market())))
         print("  Layer 0: %d Kandidaten (kostenlos)" % len(candidates))
 
-        est, tasks = dfs.estimate_search_volume_cost(len(candidates))
-        print("  Layer 1: %d Tasks a %d Keywords -> geschaetzt %s"
-              % (tasks, min(len(candidates), 1000), money(est)))
+        est_sv, tasks = dfs.estimate_search_volume_cost(len(candidates))
+        print("  Layer 1: %d Task(s) -> geschaetzt %s" % (tasks, money(est_sv)))
         if not args.go:
+            print("  Layer 2: erst nach den Filtern bezifferbar")
             print(rule("-"))
             print("  %sTrockenlauf.%s Mit --go tatsaechlich abrufen." % (BOLD, RST))
             return 0
 
         metrics = dfs.search_volume(candidates, run)
-        metrics = [m for m in metrics if (m.search_volume or 0) >= args.min_volume]
-        metrics.sort(key=lambda m: (m.search_volume or 0), reverse=True)
 
-        vmax = max([m.search_volume or 0 for m in metrics] or [1])
-        rows = [{
-            "kw": m.keyword,
-            "vol": m.search_volume,
-            "cpc": m.cpc,
-            "comp": m.competition_index,
-            "trend": m.trend_ratio(),
-            "viz": bar(m.search_volume, vmax, 12),
-        } for m in metrics[:args.top]]
+        # -- Filterkette: hart, in fester Reihenfolge, jeder Abgang sichtbar
+        funnel = Funnel(args.min_volume, args.max_volume, args.min_cpc)
+        survivors = funnel.run(metrics)
         print(rule("-"))
-        print(table(rows, [("kw", "KEYWORD", 34, "l"), ("vol", "VOL", 7, "r"),
-                           ("cpc", "CPC", 7, "r"), ("comp", "COMP", 4, "r"),
-                           ("trend", "TREND", 6, "r"), ("viz", "VOLUMEN", 12, "l")]))
+        print(table(funnel.report_rows(), [("stufe", "FILTER", 26, "l"),
+                                           ("raus", "RAUS", 6, "r"),
+                                           ("uebrig", "UEBRIG", 7, "r")]))
+        if not survivors:
+            print("\n  Nichts ueberlebt die Filter. Seed zu eng oder zu kommerziell.")
+            print()
+            print(cost_report(run))
+            return 0
+
+        # -- Layer 2 nur auf Ueberlebende
+        est_kd, reqs = dfs.estimate_difficulty_cost(len(survivors))
+        print(rule("-"))
+        print("  Layer 2: Difficulty fuer %d Ueberlebende -> %s" % (len(survivors), money(est_kd)))
+        kd = dfs.keyword_difficulty([m.keyword for m in survivors], run)
+
+        annotated = order(annotate_intent(survivors), lambda k: kd.get(k))
+        blocks = [("STUFE 1-2  Werkzeugnot und Wechsel", [a for a in annotated if a[1] <= 2]),
+                  ("STUFE 3-4  Kaufabsicht und Orientierung", [a for a in annotated if a[1] > 2])]
+
+        cols = [("kw", "KEYWORD", 36, "l"), ("lvl", "ST", 2, "r"),
+                ("kd", "DIFF", 4, "r"), ("cpc", "CPC", 6, "r"),
+                ("vol", "VOL", 6, "r"), ("viz", "DIFFICULTY", 12, "l")]
+        for title, rows_in in blocks:
+            print()
+            print("%s%s%s" % (BOLD, title, RST))
+            print(table([{"kw": m.keyword, "lvl": lvl, "kd": kd.get(m.keyword),
+                          "cpc": m.cpc, "vol": m.search_volume,
+                          "viz": bar(kd.get(m.keyword), 100, 12)}
+                         for m, lvl, _n, _p in rows_in[:args.top]], cols))
+
         print()
         print(cost_report(run))
         if args.json:
-            open(args.json, "w").write(json.dumps([m.to_dict() for m in metrics],
-                                                  ensure_ascii=False, indent=2))
+            payload = [dict(m.to_dict(), intent_level=lvl, intent=name,
+                            keyword_difficulty=kd.get(m.keyword))
+                       for m, lvl, name, _p in annotated]
+            open(args.json, "w").write(json.dumps(payload, ensure_ascii=False, indent=2))
             print("  -> %s" % args.json)
     return 0
 
@@ -152,7 +174,12 @@ def main(argv=None):
     s.add_argument("--go", action="store_true", help="wirklich abrufen (sonst Trockenlauf)")
     s.add_argument("--limit", type=int, default=500)
     s.add_argument("--top", type=int, default=40)
-    s.add_argument("--min-volume", type=int, default=10)
+    s.add_argument("--min-volume", type=int, default=300,
+                   help="darunter raus (Default 300)")
+    s.add_argument("--max-volume", type=int, default=10000,
+                   help="darueber raus, dort sitzt schon jemand mit Budget")
+    s.add_argument("--min-cpc", type=float, default=0.50,
+                   help="darunter raus, Informationssuche")
     s.add_argument("--budget", type=float, default=Config.run_budget_usd)
     s.add_argument("--queued", action="store_true", help="Standard-Queue $0.06 statt Live $0.09")
     s.add_argument("--deep", action="store_true")

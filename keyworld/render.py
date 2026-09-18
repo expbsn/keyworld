@@ -30,7 +30,7 @@ def table(rows, cols, width=78):
         cells = []
         for key, _, w, a in cols:
             v = r.get(key)
-            s = "-" if v is None else (("%.4f" % v) if isinstance(v, float) else str(v))
+            s = "?" if v is None else (("%.4f" % v) if isinstance(v, float) else str(v))
             s = s[:w]
             cells.append(s.ljust(w) if a == "l" else s.rjust(w))
         out.append("  ".join(cells))
