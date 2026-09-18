@@ -289,14 +289,27 @@ def verdict_from_scores(scores, why, meta):
             "download": meta["download"]}
 
 
-def classify_url(url, domain, overrides, session=None, fetch_page=True):
-    dom, base = _norm(domain), _base(domain)
+def override_verdict(domain, overrides):
+    """Deine Korrektur, falls es eine gibt. Schlaegt ALLES -- auch den Cache.
 
-    hit = _in_group(dom, overrides)
-    if hit:
-        kind, note = overrides[hit]
-        return {"kind": kind, "confidence": 1.0, "why": ["override: %s" % (note or "-")],
-                "lang": None, "published": None, "download": False, "source": "override"}
+    Ein gecachtes Urteil ist selbst ein Heuristik-Ergebnis. Duerfte es das
+    Override ueberstimmen, waere eine Zeile in overrides.csv bis zum Ablauf
+    des Caches wirkungslos.
+    """
+    hit = _in_group(_norm(domain), overrides)
+    if not hit:
+        return None
+    kind, note = overrides[hit]
+    return {"kind": kind, "confidence": 1.0, "why": ["override: %s" % (note or "-")],
+            "lang": None, "published": None, "download": False, "source": "override"}
+
+
+def classify_url(url, domain, overrides, session=None, fetch_page=True):
+    dom = _norm(domain)
+
+    forced = override_verdict(dom, overrides)
+    if forced:
+        return forced
 
     for group, kind in ((FORUM_DOMAINS, "forum"), (MARKETPLACE_DOMAINS, "marketplace"),
                         (AGGREGATOR_DOMAINS, "aggregator"), (ARTICLE_DOMAINS, "article")):
@@ -318,6 +331,12 @@ def classify_many(results, overrides=None, workers=8, fetch_page=True, cache=Non
     overrides = load_overrides() if overrides is None else overrides
     out, todo = {}, []
     for r in results:
+        # Reihenfolge ist entscheidend: Override vor Cache, sonst wirkt eine
+        # frische Korrektur erst nach Ablauf der Cache-Frist.
+        forced = override_verdict(r["domain"], overrides)
+        if forced:
+            out[r["url"]] = forced
+            continue
         hit = cache.get(r["url"]) if cache else None
         if hit is not None:
             out[r["url"]] = hit

@@ -132,6 +132,10 @@ Jeder Lauf schreibt zusaetzlich `<lauf>-pruefliste.csv` im Format von
 overrides.csv -- Spalte `type` ausfuellen, Zeilen nach overrides.csv
 kopieren, fertig.
 
+Overrides schlagen auch den Seiten-Cache und werden nie hineingeschrieben.
+Eine frische Korrektur wirkt sofort im naechsten Lauf, nicht erst nach
+Ablauf der 30-Tage-Frist.
+
 ## Zustand je Keyword
 
 Ergebnisse liegen in `data/keyworld.db` (SQLite, eine Datei, kein Server)

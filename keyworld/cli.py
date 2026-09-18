@@ -257,7 +257,9 @@ def _classify_cached(targets, overrides, run, workers):
             cache[t["url"]] = hit
     out = classify_many(targets, overrides, workers=workers, cache=cache)
     for url, v in out.items():
-        if url not in cache:
+        # Overrides nicht in den Cache schreiben -- sie werden bei jedem Lauf
+        # frisch aus der Datei gelesen und sollen dort aenderbar bleiben.
+        if url not in cache and v.get("source") != "override":
             run.cache_put("page", url, v)
     run.commit()
     return out
