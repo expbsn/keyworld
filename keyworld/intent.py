@@ -22,7 +22,7 @@ LADDER = {
         r"selber (machen|bauen|erstellen|schreiben)", r"per hand", r"\bmanuell",
         r"\bvorlage\b", r"\btemplate\b", r"\bmuster\b", r"\bformular\b",
     ]),
-    2: ("Frust und Preis", [
+    2: ("Kaufbereit", [
         r"alternative", r"zu teuer", r"\bkuendig", r"\bkündig",
         r"funktioniert nicht", r"geht nicht", r"\bproblem",
         r"g(ue|ü)nstige[rs]? alternative", r"\bersatz\b", r"\bstatt\b",
@@ -33,6 +33,11 @@ LADDER = {
         # "kostenlos" duerfen NICHT feuern.
         r"\bpreise?\b", r"\bkosten\b", r"\bkostet\b", r"\babo\b",
         r"\blizenz", r"\btarif", r"was kostet",
+        # Ausdrueckliche Werkzeugsuche. Wer "dienstplan app" sucht, weiss
+        # bereits, dass er Software will -- Nachfrage ist bewiesen, nur der
+        # Anbieter fehlt noch.
+        r"\bapp\b", r"\bsoftware\b", r"\bprogramm\b", r"\btool\b",
+        r"\bdigital\b", r"\bonline\b", r"\bcloud\b",
     ]),
     3: ("Pflicht", [
         r"pflicht", r"vorgeschrieben", r"verpflichtend", r"gesetzlich",

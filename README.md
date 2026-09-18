@@ -67,9 +67,11 @@ Erste Spalte, nicht Teil eines Scores.
 
     1  Werkzeugnot   "in excel", "vorlage", "muster", "automatisieren",
                      "konvertieren", "exportieren", "extrahieren"
-    2  Frust/Preis   "alternative", "zu teuer", "kuendigen", "preise",
-                     "kosten", "abo", "lizenz"  -- Preisrecherche zu einem
-                     konkreten Produkt ist Wechselabsicht
+    2  Kaufbereit    "alternative", "zu teuer", "preise", "kosten", "abo",
+                     "app", "software", "tool", "digital", "online"
+                     Will zahlen: sucht Ersatz, vergleicht Preise, oder
+                     sucht ausdruecklich ein Werkzeug. "dienstplan app"
+                     ist die direkteste Produktnachfrage, die es gibt.
     3  Pflicht       "pflicht 2026", "vorgeschrieben", "nachweis erstellen",
                      "dokumentationspflicht", "frist"
     4  Orientierung  "beste X app", "wie funktioniert", "was ist"   -> sinkt
