@@ -90,6 +90,29 @@ def cmd_scout(args):
     return 0
 
 
+def cmd_fetch(args):
+    """Sammelt bezahlte, aber nicht abgeholte Queue-Tasks ein. Kostenlos."""
+    from .providers import DataForSEO
+    from .store import open_tasks
+    tasks = open_tasks()
+    print(head("FETCH  %d offene Task(s)" % len(tasks)))
+    if not tasks:
+        print("  %sNichts abzuholen.%s" % (DIM, RST))
+        return 0
+    dfs = DataForSEO()
+    with Run(seed="fetch", budget_usd=0.0) as run:
+        total = 0
+        for t in tasks:
+            metrics, done = dfs.collect(t, run)
+            total += len(metrics)
+            print("  %s  %-28s %5d Keywords  %s (bezahlt: $%.4f)"
+                  % (t["task_id"][:18], t["path_base"].split("/")[-1], len(metrics),
+                     "OK" if done else "noch in Queue", t["cost_usd"]))
+        print(rule("-"))
+        print("  %d Keywords in den Cache geholt fuer $0.0000" % total)
+    return 0
+
+
 def cmd_costs(args):
     if args.run:
         conn = Run.__new__(Run)
@@ -135,6 +158,9 @@ def main(argv=None):
     s.add_argument("--deep", action="store_true")
     s.add_argument("--json")
     s.set_defaults(fn=cmd_scout)
+
+    f = sub.add_parser("fetch", help="Offene Queue-Tasks einsammeln (kostenlos)")
+    f.set_defaults(fn=cmd_fetch)
 
     c = sub.add_parser("costs", help="Ausgabenuebersicht")
     c.add_argument("--run", help="Detailansicht fuer eine Run-ID")

@@ -57,12 +57,22 @@ Layer 0 laeuft ohne Credentials.
     ./keyworld.sh scout "hundefutter"             # Trockenlauf: nur Kostenschaetzung
     ./keyworld.sh scout "hundefutter" --go        # wirklich abrufen
     ./keyworld.sh scout "hundefutter" --go --queued --budget 0.50
+    ./keyworld.sh fetch                           # offene Queue-Tasks einsammeln
     ./keyworld.sh costs                           # Ausgabenuebersicht
     ./keyworld.sh costs --run <ID>                # Detail pro Run
 
 `scout` ohne `--go` ist immer ein Trockenlauf und gibt nur die geschaetzten
 Kosten aus. Jeder Run hat ausserdem ein hartes Budget-Limit
 (`KEYWORLD_RUN_BUDGET_USD`), das vor dem Call greift, nicht danach.
+
+## Live vs. Queue
+
+`--queued` postet den Task asynchron ($0.06) und pollt ihn ab; `task_get` ist
+kostenlos. Jeder gepostete Task wird in `pending_tasks` registriert, bevor
+gepollt wird. Bricht der Abruf ab, geht das Geld nicht verloren -- der Task
+laesst sich spaeter mit `keyworld fetch` kostenlos einsammeln.
+
+Ohne `--queued` laeuft der Live-Modus ($0.09), Antwort in Sekunden.
 
 ## Kostentransparenz
 

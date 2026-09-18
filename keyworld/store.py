@@ -38,6 +38,18 @@ CREATE TABLE IF NOT EXISTS cost_ledger (
 );
 CREATE INDEX IF NOT EXISTS idx_ledger_run ON cost_ledger(run_id);
 
+CREATE TABLE IF NOT EXISTS pending_tasks (
+    task_id     TEXT PRIMARY KEY,
+    run_id      TEXT NOT NULL,
+    provider    TEXT NOT NULL,
+    path_base   TEXT NOT NULL,
+    layer       TEXT NOT NULL,
+    posted_at   REAL NOT NULL,
+    cost_usd    REAL NOT NULL DEFAULT 0.0,
+    keywords    INTEGER NOT NULL DEFAULT 0,
+    fetched_at  REAL
+);
+
 CREATE TABLE IF NOT EXISTS runs (
     run_id      TEXT PRIMARY KEY,
     started_at  REAL NOT NULL,
@@ -153,6 +165,23 @@ class Run:
             (key, source, keyword.lower(), market, json.dumps(payload, ensure_ascii=False), now()),
         )
 
+    # -- Async-Tasks -----------------------------------------------------
+    def add_pending(self, task_id, provider, path_base, layer, cost_usd, keywords):
+        """Merkt einen bezahlten Queue-Task, damit er spaeter kostenlos
+        eingesammelt werden kann statt erneut gebucht zu werden."""
+        self.conn.execute(
+            "INSERT OR IGNORE INTO pending_tasks (task_id, run_id, provider, path_base,"
+            " layer, posted_at, cost_usd, keywords) VALUES (?,?,?,?,?,?,?,?)",
+            (task_id, self.run_id, provider, path_base, layer, now(),
+             float(cost_usd or 0.0), int(keywords)),
+        )
+        self.conn.commit()
+
+    def mark_fetched(self, task_id):
+        self.conn.execute("UPDATE pending_tasks SET fetched_at=? WHERE task_id=?",
+                          (now(), task_id))
+        self.conn.commit()
+
     def commit(self):
         self.conn.commit()
 
@@ -171,6 +200,13 @@ def all_runs(limit=20):
         "SELECT r.*, COALESCE(SUM(c.cost_usd),0) AS cost, COUNT(c.id) AS calls"
         " FROM runs r LEFT JOIN cost_ledger c ON c.run_id=r.run_id"
         " GROUP BY r.run_id ORDER BY r.started_at DESC LIMIT ?", (limit,))]
+
+
+def open_tasks():
+    """Bezahlte, aber noch nicht abgeholte Queue-Tasks."""
+    conn = connect()
+    return [dict(r) for r in conn.execute(
+        "SELECT * FROM pending_tasks WHERE fetched_at IS NULL ORDER BY posted_at")]
 
 
 def lifetime_cost():

@@ -50,7 +50,7 @@ def money(v):
 
 def cost_report(run, width=78):
     """Transparente Ausgabenuebersicht fuer einen Run."""
-    lines = [head("AUSGABEN  run=%s  markt=%s" % (run.run_id, run.seed or "-"), width)]
+    lines = [head("AUSGABEN  run=%s  seed=%s" % (run.run_id, run.seed or "-"), width)]
     rows = run.breakdown()
     lines.append(table(rows, [
         ("layer", "LAYER", 5, "l"),
@@ -60,10 +60,11 @@ def cost_report(run, width=78):
         ("units", "UNITS", 7, "r"),
         ("cache_hits", "CACHE", 5, "r"),
         ("cost", "USD", 8, "r"),
+        ("saved", "SPART", 7, "r"),
     ], width))
     spent, saved = run.total_cost(), run.total_saved()
     lines.append(rule("-", width))
     lines.append("  Ausgegeben : %s" % money(spent))
-    lines.append("  Durch Cache gespart: %s%s$%.4f%s" % (GRN, "", saved, RST))
+    lines.append("  Gespart    : %s$%.4f%s  (Cache)" % (GRN, saved, RST))
     lines.append("  Budget     : $%.2f   Rest: $%.4f" % (run.budget, run.budget - spent))
     return "\n".join(lines)

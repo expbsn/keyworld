@@ -65,6 +65,47 @@ class DataForSEO(MetricsProvider):
         r = self.session.get("%s/%s" % (BASE, path.lstrip("/")), timeout=60)
         return r.json()
 
+    def _poll(self, path_base, task_id, max_wait=900):
+        """Holt einen Queue-Task ab. task_get ist kostenlos."""
+        waited, interval = 0.0, 3.0
+        while waited < max_wait:
+            data = self._get("%s/task_get/%s" % (path_base, task_id))
+            task = (data.get("tasks") or [{}])[0]
+            code = task.get("status_code")
+            if code == 20000:
+                return task.get("result") or [], True
+            if code in (40601, 40602, 20100):     # handed / in queue / created
+                time.sleep(interval)
+                waited += interval
+                interval = min(interval * 1.5, 30.0)
+                continue
+            raise DataForSEOError("task_get %s: %s %s" % (task_id, code, task.get("status_message")))
+        return [], False
+
+    def _dispatch(self, path_base, payload, run, layer, units, note):
+        """Live oder Queue -- gibt (items, gemeldete_kosten) zurueck.
+
+        Im Queue-Modus wird der Task erst registriert und dann abgeholt. Bricht
+        das Abholen ab, bleibt er in pending_tasks und kostet beim spaeteren
+        Einsammeln nichts mehr.
+        """
+        if self.live:
+            data = self._post("%s/live" % path_base, payload)
+            return self._results(data), float(data.get("cost") or 0.0)
+
+        data = self._post("%s/task_post" % path_base, payload)
+        cost = float(data.get("cost") or 0.0)
+        ids = [t.get("id") for t in (data.get("tasks") or []) if t.get("id")]
+        for tid in ids:
+            run.add_pending(tid, self.name, path_base, layer, cost / max(1, len(ids)), units)
+        items = []
+        for tid in ids:
+            got, done = self._poll(path_base, tid)
+            items.extend(got)
+            if done:
+                run.mark_fetched(tid)
+        return items, cost
+
     @staticmethod
     def _results(data):
         out = []
@@ -127,16 +168,21 @@ class DataForSEO(MetricsProvider):
             else:
                 misses.append(kw)
 
+        n_hits = len(keywords) - len(misses)
+        if n_hits:
+            # Ersparnis anteilig: was diese Keywords als eigene Tasks gekostet haetten
+            saved, _ = self.estimate_search_volume_cost(n_hits)
+            run.charge(self.name, "search_volume", layer, n_hits, saved,
+                       cached=True, note="%d Cache-Treffer" % n_hits)
+
         if misses:
             est, tasks = self.estimate_search_volume_cost(len(misses))
-            run.charge(self.name, "search_volume", layer, len(keywords) - len(misses), 0.0,
-                       cached=True, note="%d Cache-Treffer" % (len(keywords) - len(misses)))
             if run.would_exceed(est):
                 raise DataForSEOError(
                     "Abbruch: %d Keywords wuerden ~%.4f USD kosten, Budget-Rest %.4f USD"
                     % (len(misses), est, run.budget - run.total_cost()))
 
-        mode = "live" if self.live else "task_post"
+        base = "keywords_data/google_ads/search_volume"
         for i in range(0, len(misses), MAX_KW_PER_TASK):
             chunk = misses[i:i + MAX_KW_PER_TASK]
             payload = [{"keywords": chunk,
@@ -144,18 +190,29 @@ class DataForSEO(MetricsProvider):
                         "language_code": Config.language_code,
                         "search_partners": False,
                         "sort_by": "search_volume"}]
-            data = self._post("keywords_data/google_ads/search_volume/%s" % mode, payload)
-            items = self._results(data)
+            items, billed = self._dispatch(base, payload, run, layer, len(chunk), "search_volume")
             for item in items:
                 m = self._parse(item)
                 run.cache_put(self.name, m.keyword, m.to_dict())
                 results.append(m)
-            run.charge(self.name, "search_volume", layer, len(chunk),
-                       float(data.get("cost") or 0.0),
+            run.charge(self.name, "search_volume", layer, len(chunk), billed,
                        note="%d Keywords -> %d Treffer" % (len(chunk), len(items)))
             run.commit()
 
         return results
+
+    def collect(self, task, run):
+        """Sammelt einen bereits bezahlten Queue-Task ein. Kostet nichts."""
+        items, done = self._poll(task["path_base"], task["task_id"], max_wait=60)
+        metrics = [self._parse(i) for i in items]
+        for m in metrics:
+            run.cache_put(self.name, m.keyword, m.to_dict())
+        if done:
+            run.mark_fetched(task["task_id"])
+        run.charge(self.name, "collect", task["layer"], len(metrics), 0.0,
+                   note="Task %s eingesammelt (bereits bezahlt)" % task["task_id"][:18])
+        run.commit()
+        return metrics, done
 
     def keyword_ideas(self, seeds, run, limit=500, layer="L1"):
         """Erweitert Seeds zu verwandten Keywords -- inklusive Metriken."""
@@ -181,14 +238,13 @@ class DataForSEO(MetricsProvider):
                     "language_code": Config.language_code,
                     "search_partners": False,
                     "sort_by": "search_volume"}]
-        mode = "live" if self.live else "task_post"
-        data = self._post("keywords_data/google_ads/keywords_for_keywords/%s" % mode, payload)
-        metrics = [self._parse(i) for i in self._results(data)]
+        items, billed = self._dispatch("keywords_data/google_ads/keywords_for_keywords",
+                                       payload, run, layer, len(seeds), "keyword_ideas")
+        metrics = [self._parse(i) for i in items]
         for m in metrics:
             run.cache_put(self.name, m.keyword, m.to_dict())
         run.cache_put(self.name, cache_key, [m.to_dict() for m in metrics])
-        run.charge(self.name, "keywords_for_keywords", layer, len(metrics),
-                   float(data.get("cost") or 0.0),
+        run.charge(self.name, "keywords_for_keywords", layer, len(metrics), billed,
                    note="%d Seeds -> %d Ideen" % (len(seeds), len(metrics)))
         run.commit()
         return metrics[:limit]
