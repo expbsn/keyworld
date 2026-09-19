@@ -118,7 +118,7 @@ function render(){
   if (!rows.length){ $("#view").innerHTML = '<p class="dim">Nichts gefunden.</p>'; return; }
   const head = `<tr><th>Keyword</th><th>St</th><th>Difficulty</th><th>SERP</th>
    <th class="n">Sicher</th><th class="n">CPC</th><th class="n">Vol</th>
-   <th class="n">Trend</th><th>Signale</th><th>Top-Domain</th><th>Zustand</th></tr>`;
+   <th class="n">Trend</th><th class="n">Saison</th><th>Signale</th><th>Top-Domain</th><th>Zustand</th></tr>`;
   const body = rows.map((r,i) => `<tr data-i="${i}" class="${i===cur?'sel':''}">
     <td>${esc(r.keyword)}${r.variants && r.variants.length?
       ` <span class="dim">+${r.variants.length}</span>`:""}</td>
@@ -129,6 +129,7 @@ function render(){
     <td class="n">${r.cpc==null?"-":r.cpc.toFixed(2)}</td>
     <td class="n">${r.volume ?? "-"}</td>
     <td class="n dim">${r.trend==null?"-":r.trend.toFixed(2)}</td>
+    <td class="n dim" title="Spitze zu Median - hoch heisst stark saisonal">${r.season==null?"-":r.season.toFixed(1)}</td>
     <td class="dim">${esc(r.flags)}</td>
     <td class="dim">${esc((r.top_domains||"").split(" ")[0]||"")}</td>
     <td class="st-${esc(r.state)}">${esc(r.state)}</td></tr>`).join("");

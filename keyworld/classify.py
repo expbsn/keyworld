@@ -36,9 +36,6 @@ CONFIDENCE_FLOOR = 0.50
 KINDS = ("product", "article", "forum", "marketplace", "aggregator",
          "download", "institution", "unknown")
 
-# Nur eine echte Produkt- oder Anbieterseite besetzt den Platz wirklich.
-# Alles andere ist von einem Produkt angreifbar.
-OCCUPYING = ("product",)
 
 # -- Domains, bei denen die Zuordnung sicher ist ------------------------------
 FORUM_DOMAINS = {          # UGC und soziale Plattformen: nie eine Produktseite

@@ -248,6 +248,7 @@ Weitere Schalter:
     --patterns FILE        eigene Muster statt data/patterns.txt
     --keywords-file FILE   fertige Keywords, eine je Zeile
     --harvest FILE         verwandte Suchen und PAA fuer den naechsten Lauf
+    --serp PROD            nur SERPs, auf denen Produktseiten ranken
     --max-serp 120         Deckel fuer Layer 2, nimmt die hoechsten CPCs
     --include-rejected     Abgelehnte doch wieder zeigen
     --workers 8            parallele Seitenabrufe
@@ -333,11 +334,14 @@ decken die obersten 20 bereits 43 % aller betroffenen Treffer ab.
 Gelegenheit. Der Scout verdichtet deshalb je Themengebiet und zeigt die
 vertretbarste Zeile mit der Zahl der Varianten. `--flat` schaltet das ab.
 
-Der Trend (letzte 3 Monate gegen die 3 davor) steht als Spalte und laesst
-sich mit `--min-trend 0.8` filtern, ist aber standardmaessig AUS: ueber nur
-12 Monate Historie laesst sich Niedergang nicht von Saison trennen. Ein
-Schulthema im August sieht aus wie eine sterbende Nische. Sichtbar machen
-schlaegt wegfiltern.
+Der Trend (letzte 3 Monate gegen die 3 davor) steht als Spalte `TR` und
+laesst sich mit `--min-trend 0.8` filtern, ist aber standardmaessig AUS:
+ueber nur 12 Monate Historie laesst sich Niedergang nicht von Saison
+trennen. Ein Schulthema im August sieht aus wie eine sterbende Nische.
+
+Daneben steht `SAI`, die Saisonalitaet (Spitze zu Median). Erst beide
+zusammen sind lesbar: Trend 0,7 bei Saison 1,2 ist ein echter Rueckgang,
+Trend 0,1 bei Saison 4,0 ist schlicht Sommerpause.
 
 ## Nicht-Ziele
 

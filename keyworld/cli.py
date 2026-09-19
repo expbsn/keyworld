@@ -109,12 +109,12 @@ def _collect_candidates(args, run):
 
 
 def cmd_scout(args):
-    from .classify import CONFIDENCE_FLOOR, load_overrides
+    from .classify import load_overrides
     from .export import write_csv, write_review_csv
     from .filters import Funnel, annotate_intent, order, split_tiers
     from .providers import DataForSEO
-    from .serp import (analyse, attach_verdicts, find_incumbents,
-                       find_incumbents_grouped, review_queue)
+    from .serp import (analyse, attach_verdicts, find_incumbents_grouped,
+                       review_queue)
 
     if not Config.has_dataforseo():
         print("  Keine DataForSEO-Credentials -- siehe .env.example", file=sys.stderr)
@@ -204,6 +204,13 @@ def cmd_scout(args):
             print("  %s%d Keywords ohne belastbare Difficulty -- werden zuerst gezeigt%s"
                   % (DIM, n_thin, RST))
 
+        if args.serp:
+            keep = [m for m in survivors
+                    if (analysis.get(m.keyword) or {}).get("serp_intent") == args.serp]
+            print("  %d von %d mit SERP-Absicht %s" % (len(keep), len(survivors), args.serp))
+            if not keep:
+                print("  %skeine Treffer, zeige alle%s" % (DIM, RST))
+            survivors = keep or survivors      # nie alles wegfiltern
         annotated = order(annotate_intent(survivors), lambda k: (analysis.get(k) or {}).get("difficulty"))
         visible, sunk = split_tiers(annotated)
 
@@ -218,7 +225,7 @@ def cmd_scout(args):
                 subject=subjects.get(m.keyword, ""),
                 top_domains=" ".join(a.get("top_domains", [])[:4]),
                 sure=a.get("sure"), unsure=a.get("unsure"), run_id=run.run_id,
-                spread=a.get("spread"))
+                spread=a.get("spread"), season=m.seasonality())
             prev = known.get(m.keyword, {})
             rows.append(dict(m.to_dict(), tier=lvl, tier_name=name, serp=a or None,
                              state=prev.get("state", st), note=prev.get("note", ""),
@@ -228,7 +235,8 @@ def cmd_scout(args):
         cols = [("kw", "KEYWORD", 32, "l"), ("tier", "T", 1, "r"),
                 ("diff", "DIFF", 7, "r"), ("viz", "", 8, "l"),
                 ("si", "SERP", 4, "l"), ("sure", "SICH", 4, "r"),
-                ("trend", "TR", 4, "r"), ("flags", "SIGNALE", 18, "l"),
+                ("trend", "TR", 4, "r"), ("season", "SAI", 4, "r"),
+                ("flags", "SIGNALE", 16, "l"),
                 ("cpc", "CPC", 6, "r"), ("vol", "VOL", 6, "r"),
                 ("var", "VAR", 3, "r"), ("top", "TOP-DOMAIN", 18, "l")]
 
@@ -337,6 +345,7 @@ def _row(m, lvl, analysis, incumbents, n_variants=0):
             "diff": "?" if d is None else ("%d\u00b1%d" % (d, round(sp)) if sp else str(d)),
             "viz": bar(d, 100, 8),
             "trend": ("%.2f" % t)[1:] if t else "-",
+            "season": ("%.1f" % m.seasonality()) if m.seasonality() else "-",
             "var": ("+%d" % n_variants) if n_variants else "",
             "si": a.get("serp_intent", ""),
             "sure": "%d/%d" % (a.get("sure", 0), a.get("sure", 0) + a.get("unsure", 0)),
@@ -365,7 +374,12 @@ def cmd_review(args):
                  ("st", "STATE", 11, "l"), ("fl", "SIGNALE", 18, "l"),
                  ("note", "NOTIZ", 20, "l")]))
     print(rule("-"))
-    print("  " + "  ".join("%s=%d" % kv for kv in sorted(state_counts(market).items())))
+    counts = state_counts(market)
+    if counts:
+        print("  " + "  ".join("%s=%d" % kv for kv in sorted(counts.items())))
+    else:
+        print("  %sNoch keine Keywords. Erst scouten:%s" % (DIM, RST))
+        print("  ./keyworld.sh scout --domains data/domains.txt --go")
     return 0
 
 
@@ -474,6 +488,9 @@ def main(argv=None):
                    help="ohne Verdichtung je Gebiet, jede Zeile einzeln")
     s.add_argument("--budget", type=float, default=Config.run_budget_usd)
     s.add_argument("--live", action="store_true")
+    s.add_argument("--serp", choices=("PROD", "MIX", "RED"),
+                   help="nur diese SERP-Absicht; PROD heisst, dass Google "
+                        "dort echte Produktseiten rankt")
     s.add_argument("--max-serp", type=int, default=120)
     s.add_argument("--incumbent-share", type=float, default=0.25)
     s.add_argument("--workers", type=int, default=8)

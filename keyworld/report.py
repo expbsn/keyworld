@@ -4,7 +4,6 @@ Gleicher Inhalt wie die Terminal-Ausgabe, nur sortierbar und mit Balken.
 Bewusst kein Framework -- der Report soll in fuenf Jahren noch aufgehen.
 """
 import html
-import json
 from datetime import datetime
 from pathlib import Path
 

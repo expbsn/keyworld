@@ -94,6 +94,7 @@ LATE_COLUMNS = [
     ("unsure", "INTEGER"),
     ("run_id", "TEXT NOT NULL DEFAULT ''"),
     ("spread", "REAL"),
+    ("season", "REAL"),
 ]
 
 
@@ -229,7 +230,7 @@ class Run:
         unangetastet -- das ist die Spalte des Nutzers, nicht des Tools."""
         cols = ("tier", "difficulty", "cpc", "volume", "flags", "serp_intent",
                 "trend", "subject", "top_domains", "sure", "unsure", "run_id",
-                "spread")
+                "spread", "season")
         row = self.conn.execute(
             "SELECT state FROM keyword_state WHERE keyword=? AND market=?",
             (keyword, market)).fetchone()

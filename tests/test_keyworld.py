@@ -2,8 +2,13 @@
 
     ./.venv/bin/python -m unittest discover -s tests -v
 """
+import contextlib
+import io
+import re
 import unittest
+from pathlib import Path
 
+from keyworld.cli import main
 from keyworld.classify import (_in_group, _suffixes, is_stale, looks_like_file,
                                signals_for, verdict_from_scores)
 from keyworld.cluster import best_of, group
@@ -199,6 +204,32 @@ class Verdichtung(unittest.TestCase):
         rows = [{"keyword": "a", "cpc": 1.0, "serp": {"difficulty": 5}},
                 {"keyword": "b", "cpc": 1.0, "serp": {"difficulty": None}}]
         self.assertEqual(best_of(rows)["keyword"], "b")
+
+
+class Doku(unittest.TestCase):
+    """Verhindert Doku-Drift: jedes in der README versprochene Flag muss es
+    geben. '--product-serp-only' war beim CLI-Neubau still verschwunden und
+    stand trotzdem noch in der Anleitung."""
+
+    COMMANDS = ("scout", "gen", "review", "queue", "costs", "serve", "discover")
+    FLAG = re.compile(r"(?<![\w-])--[a-z][a-z-]{2,}")
+
+    def _known_flags(self):
+        known = set()
+        for cmd in self.COMMANDS:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                with self.assertRaises(SystemExit):
+                    main([cmd, "--help"])
+            known |= set(self.FLAG.findall(buf.getvalue()))
+        return known
+
+    def test_versprochene_flags_existieren(self):
+        readme = (Path(__file__).parent.parent / "README.md").read_text()
+        promised = set(self.FLAG.findall(readme))
+        fehlend = sorted(promised - self._known_flags())
+        self.assertEqual(fehlend, [],
+                         "in README versprochen, aber nicht im CLI: %s" % fehlend)
 
 
 if __name__ == "__main__":
