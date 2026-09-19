@@ -235,7 +235,8 @@ class Doku(unittest.TestCase):
     geben. '--product-serp-only' war beim CLI-Neubau still verschwunden und
     stand trotzdem noch in der Anleitung."""
 
-    COMMANDS = ("scout", "gen", "review", "queue", "costs", "serve", "discover")
+    COMMANDS = ("scout", "gen", "review", "queue", "costs", "serve",
+                "discover", "rescore", "fetch", "probe")
     FLAG = re.compile(r"(?<![\w-])--[a-z][a-z-]{2,}")
 
     def _known_flags(self):
