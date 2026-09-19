@@ -257,6 +257,12 @@ Schaetzung; Cache-Treffer werden mit 0 gebucht und als Ersparnis gefuehrt.
 ## Interface
 
     ./keyworld.sh serve              # http://127.0.0.1:8765
+    ./keyworld.sh serve --port 9000  # anderer Port
+    pkill -f 'keyworld.cli serve'    # beenden
+
+Ist der Port belegt, wird das erklaert statt geworfen: laeuft dort bereits
+eine Keyworld-Instanz, oeffnet sich nur der Browser; ist es etwas anderes,
+weicht der Server auf den naechsten freien Port aus.
 
 Lokal, stdlib-HTTP, keine Abhaengigkeit, kein Framework. Duenne Schicht
 ueber denselben Funktionen wie die CLI -- es gibt keine Logik, die nur dort

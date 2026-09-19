@@ -371,8 +371,7 @@ def cmd_queue(args):
 def cmd_serve(args):
     from .ui import serve
     print(head("INTERFACE"))
-    serve(args.port, not args.no_open)
-    return 0
+    return serve(args.port, not args.no_open) or 0
 
 
 # -- costs / fetch ------------------------------------------------------------

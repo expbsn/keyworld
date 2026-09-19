@@ -8,7 +8,11 @@ Keyword und deine Korrekturen in overrides.csv.
 Es scoutet nicht. Abrufen kostet Geld, und Geld gibt man auf der
 Kommandozeile aus, nicht per Klick im Browser.
 """
+import errno
 import json
+import socket
+import urllib.error
+import urllib.request
 import webbrowser
 from collections import Counter
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -175,9 +179,41 @@ class Handler(BaseHTTPRequestHandler):
         return self._send(404, {"error": "not found"})
 
 
-def serve(port=8765, open_browser=True):
-    srv = HTTPServer(("127.0.0.1", port), Handler)
-    url = "http://127.0.0.1:%d/" % port
+def is_keyworld(port, timeout=1.0):
+    """Laeuft auf dem Port bereits eine Keyworld-Instanz?"""
+    try:
+        with urllib.request.urlopen(
+                "http://127.0.0.1:%d/api/costs" % port, timeout=timeout) as r:
+            return "market" in json.loads(r.read().decode("utf-8"))
+    except (urllib.error.URLError, ValueError, socket.timeout, OSError):
+        return False
+
+
+def serve(port=8765, open_browser=True, tries=8):
+    """Bindet den Port. Ist er belegt, wird das erklaert statt geworfen."""
+    srv, bound = None, port
+    for offset in range(tries):
+        try:
+            srv = HTTPServer(("127.0.0.1", port + offset), Handler)
+            bound = port + offset
+            break
+        except OSError as e:
+            if e.errno not in (errno.EADDRINUSE, errno.EACCES):
+                raise
+            if offset == 0 and is_keyworld(port):
+                url = "http://127.0.0.1:%d/" % port
+                print("  Keyworld laeuft bereits auf %s -- oeffne nur den Browser." % url)
+                print("  Beenden: pkill -f 'keyworld.cli serve'")
+                if open_browser:
+                    webbrowser.open(url)
+                return 0
+            print("  Port %d belegt, versuche %d ..." % (port + offset, port + offset + 1))
+    if srv is None:
+        print("  Kein freier Port zwischen %d und %d." % (port, port + tries - 1))
+        print("  Anderen Port waehlen: keyworld serve --port 9000")
+        return 1
+
+    url = "http://127.0.0.1:%d/" % bound
     print("  Keyworld laeuft auf %s" % url)
     print("  Markt: %s   Beenden: Ctrl-C" % Config.market())
     if open_browser:
@@ -188,3 +224,4 @@ def serve(port=8765, open_browser=True):
         print("\n  beendet")
     finally:
         srv.server_close()
+    return 0
