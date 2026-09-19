@@ -164,6 +164,22 @@ naeher beieinander liegen, sind nicht unterscheidbar -- und wo die
 Unschaerfe den Wert uebersteigt (`8±10`), bedeutet die Rangposition
 nichts. Das gehoert in die Ausgabe, nicht in eine Fussnote.
 
+## Neu bewerten ohne Abruf
+
+Jedes Seitenurteil speichert seine Rohsignale mit. Eine geaenderte
+Gewichtung oder Schwelle wirkt deshalb in Sekunden statt nach einem
+erneuten Abruf von hunderten Seiten:
+
+    ./keyworld.sh rescore --dry-run    # zeigt, was sich aendern wuerde
+    ./keyworld.sh rescore              # schreibt die neuen Urteile
+
+Danach den Scout erneut laufen lassen -- alles ist gecacht, kostet also
+nichts, und Difficulty, Signale und SERP-Absicht werden neu gerechnet.
+Urteile aus overrides.csv und den Domainlisten bleiben unangetastet.
+
+Die Schwelle 0,50 sitzt auf einem Plateau: 0,45 liefert dieselben 82 %,
+0,40 kauft vier Punkte mit schwaecheren Belegen, 0,60 verliert elf.
+
 ## Tests
 
     ./.venv/bin/python -m unittest discover -s tests

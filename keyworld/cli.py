@@ -399,6 +399,48 @@ def cmd_queue(args):
     return 0
 
 
+def cmd_rescore(args):
+    """Urteile aus gespeicherten Rohsignalen neu ableiten. Kein Abruf, 0 $."""
+    import json as _json
+    from .classify import CONFIDENCE_FLOOR, load_overrides, override_verdict, rescore
+    from .store import connect
+
+    conn = connect()
+    overrides = load_overrides()
+    rows = conn.execute("SELECT cache_key, keyword, payload FROM kw_cache"
+                        " WHERE source='page'").fetchall()
+    changed = geprueft = 0
+    vorher = nachher = 0
+    for r in rows:
+        try:
+            old = _json.loads(r["payload"])
+        except ValueError:
+            continue
+        geprueft += 1
+        if old.get("kind") != "unknown" and old.get("confidence", 0) >= CONFIDENCE_FLOOR:
+            vorher += 1
+        new = override_verdict(r["keyword"], overrides) or rescore(old)
+        if new.get("kind") != "unknown" and new.get("confidence", 0) >= CONFIDENCE_FLOOR:
+            nachher += 1
+        if new != old:
+            changed += 1
+            if not args.dry_run:
+                conn.execute("UPDATE kw_cache SET payload=? WHERE cache_key=?",
+                             (_json.dumps(new, ensure_ascii=False), r["cache_key"]))
+    if not args.dry_run:
+        conn.commit()
+
+    print(head("RESCORE%s" % ("  (Trockenlauf)" if args.dry_run else "")))
+    print("  %d Urteile geprueft, %d geaendert" % (geprueft, changed))
+    print("  Sicher eingestuft: %d -> %d  (%.0f%% -> %.0f%%)"
+          % (vorher, nachher, 100.0 * vorher / max(1, geprueft),
+             100.0 * nachher / max(1, geprueft)))
+    print(rule("-"))
+    print("  Kein Abruf, keine Kosten. Danach den Scout erneut laufen lassen,")
+    print("  damit Difficulty und Signale neu gerechnet werden.")
+    return 0
+
+
 def cmd_serve(args):
     from .ui import serve
     print(head("INTERFACE"))
@@ -517,6 +559,10 @@ def main(argv=None):
                                       "marketplace", "aggregator"))
     q.add_argument("--note")
     q.set_defaults(fn=cmd_queue)
+
+    rs = sub.add_parser("rescore", help="Urteile aus Rohsignalen neu ableiten")
+    rs.add_argument("--dry-run", action="store_true")
+    rs.set_defaults(fn=cmd_rescore)
 
     sv = sub.add_parser("serve", help="Lokales Interface im Browser")
     sv.add_argument("--port", type=int, default=8765)

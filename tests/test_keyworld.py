@@ -10,7 +10,7 @@ from pathlib import Path
 
 from keyworld.cli import main
 from keyworld.classify import (_in_group, _suffixes, is_stale, looks_like_file,
-                               signals_for, verdict_from_scores)
+                               rescore, signals_for, verdict_from_scores)
 from keyworld.cluster import best_of, group
 from keyworld.filters import Funnel
 from keyworld.generate import expand
@@ -204,6 +204,30 @@ class Verdichtung(unittest.TestCase):
         rows = [{"keyword": "a", "cpc": 1.0, "serp": {"difficulty": 5}},
                 {"keyword": "b", "cpc": 1.0, "serp": {"difficulty": None}}]
         self.assertEqual(best_of(rows)["keyword"], "b")
+
+
+class Rescore(unittest.TestCase):
+    """Rohsignale werden gespeichert, damit Gewichtsaenderungen ohne Abruf
+    wirken. Wenn das nicht stimmt, war das Speichern sinnlos."""
+
+    def test_leitet_aus_rohsignalen_neu_ab(self):
+        v = {"kind": "article", "confidence": 0.75, "why": [],
+             "scores": {"product": 2, "article": 6}, "lang": None,
+             "published": None, "download": False, "source": "seite"}
+        staerker = rescore(dict(v, scores={"product": 8, "article": 6}))
+        self.assertEqual(staerker["kind"], "product")
+
+    def test_override_bleibt_unangetastet(self):
+        v = {"kind": "product", "confidence": 1.0, "why": ["override: x"],
+             "scores": {}, "lang": None, "published": None,
+             "download": False, "source": "override"}
+        self.assertEqual(rescore(v), v)
+
+    def test_ohne_rohsignale_unveraendert(self):
+        v = {"kind": "unknown", "confidence": 0.0, "why": ["keine Signale"],
+             "scores": {}, "lang": None, "published": None,
+             "download": False, "source": "seite"}
+        self.assertEqual(rescore(v), v)
 
 
 class Doku(unittest.TestCase):

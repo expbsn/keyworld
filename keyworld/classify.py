@@ -445,6 +445,29 @@ def classify_many(results, overrides=None, workers=8, fetch_page=True, cache=Non
     return out
 
 
+def rescore(verdict):
+    """Leitet ein Urteil aus den gespeicherten Rohsignalen neu ab.
+
+    Deshalb werden die Punkte je Kategorie mitgespeichert: eine geaenderte
+    Gewichtung oder Schwelle soll in Sekunden wirken, nicht erst nach einem
+    erneuten Abruf von hunderten Seiten. Urteile aus Overrides und
+    Domainlisten bleiben unangetastet.
+    """
+    if verdict.get("source") in ("override", "liste"):
+        return verdict
+    scores = verdict.get("scores")
+    if not scores:
+        return verdict
+    full = dict((k, 0) for k in KINDS if k != "unknown")
+    full.update(scores)
+    fresh = verdict_from_scores(full, verdict.get("why", []),
+                                {"lang": verdict.get("lang"),
+                                 "published": verdict.get("published"),
+                                 "download": verdict.get("download", False)})
+    fresh["source"] = verdict.get("source", "seite")
+    return fresh
+
+
 def is_stale(published, years=STALE_YEARS):
     if not published:
         return False
