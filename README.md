@@ -359,6 +359,10 @@ Daneben steht `SAI`, die Saisonalitaet (Spitze zu Median). Erst beide
 zusammen sind lesbar: Trend 0,7 bei Saison 1,2 ist ein echter Rueckgang,
 Trend 0,1 bei Saison 4,0 ist schlicht Sommerpause.
 
+## Begriffe
+
+Alle Begriffe aus Terminal, CSV und Interface erklaert: [GLOSSAR.md](GLOSSAR.md)
+
 ## Nicht-Ziele
 
 Das Urteil ueber eine SERP wird nicht automatisiert. Ob die Top 3 schwache
