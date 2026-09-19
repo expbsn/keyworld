@@ -93,6 +93,7 @@ LATE_COLUMNS = [
     ("sure", "INTEGER"),
     ("unsure", "INTEGER"),
     ("run_id", "TEXT NOT NULL DEFAULT ''"),
+    ("spread", "REAL"),
 ]
 
 
@@ -227,7 +228,8 @@ class Run:
         """Legt an oder aktualisiert die Messwerte. state und note bleiben
         unangetastet -- das ist die Spalte des Nutzers, nicht des Tools."""
         cols = ("tier", "difficulty", "cpc", "volume", "flags", "serp_intent",
-                "trend", "subject", "top_domains", "sure", "unsure", "run_id")
+                "trend", "subject", "top_domains", "sure", "unsure", "run_id",
+                "spread")
         row = self.conn.execute(
             "SELECT state FROM keyword_state WHERE keyword=? AND market=?",
             (keyword, market)).fetchone()
@@ -314,6 +316,32 @@ def set_keyword_state(keyword, market, state=None, note=None):
                        % ", ".join(sets), vals)
     conn.commit()
     return cur.rowcount > 0
+
+
+class RunView:
+    """Nur-Lese-Sicht auf einen abgeschlossenen Run.
+
+    Ersetzt den frueheren Griff nach Run.__new__, der am Konstruktor vorbei
+    ein halbfertiges Objekt baute. Bietet genau das, was der Kostenbericht
+    braucht -- nicht mehr.
+    """
+
+    def __init__(self, run_id, conn=None):
+        self.conn = conn or connect()
+        self.run_id = run_id
+        row = self.conn.execute(
+            "SELECT seed, market FROM runs WHERE run_id=?", (run_id,)).fetchone()
+        self.seed = row["seed"] if row else ""
+        self.market = row["market"] if row else ""
+        self.exists = row is not None
+        spent = self.conn.execute(
+            "SELECT COALESCE(SUM(cost_usd),0) s FROM cost_ledger WHERE run_id=?",
+            (run_id,)).fetchone()["s"]
+        self.budget = max(float(spent), Config.run_budget_usd)
+
+    total_cost = Run.total_cost
+    total_saved = Run.total_saved
+    breakdown = Run.breakdown
 
 
 def keyword_rows(market, state=None, limit=None):

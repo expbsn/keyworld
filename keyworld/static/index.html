@@ -95,8 +95,9 @@ let tab = "list", rows = [], cur = 0;
 
 const esc = s => String(s ?? "").replace(/[<>&"]/g, c =>
   ({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
-const bar = d => d == null ? '<span class="dim">?</span>' :
-  `<span class="bar ${d>=60?'b-hi':d>=35?'b-mid':''}"><i style="width:${Math.max(3,d)}%"></i></span> ${d}`;
+const bar = (d, sp) => d == null ? '<span class="dim">?</span>' :
+  `<span class="bar ${d>=60?'b-hi':d>=35?'b-mid':''}"><i style="width:${Math.max(3,d)}%"></i></span> ${d}`
+  + (sp ? `<span class="dim">&plusmn;${Math.round(sp)}</span>` : "");
 
 function q(){
   const p = new URLSearchParams();
@@ -122,7 +123,7 @@ function render(){
     <td>${esc(r.keyword)}${r.variants && r.variants.length?
       ` <span class="dim">+${r.variants.length}</span>`:""}</td>
     <td><span class="t t${r.tier}">${r.tier}</span></td>
-    <td>${bar(r.difficulty)}</td>
+    <td>${bar(r.difficulty, r.spread)}</td>
     <td><span class="pill ${esc(r.serp_intent)}">${esc(r.serp_intent||"-")}</span></td>
     <td class="n dim">${r.sure ?? "-"}/${(r.sure||0)+(r.unsure||0)}</td>
     <td class="n">${r.cpc==null?"-":r.cpc.toFixed(2)}</td>

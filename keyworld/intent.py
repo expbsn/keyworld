@@ -64,18 +64,37 @@ NAMES[OPEN_LEVEL] = "Offen"
 # schwache Absicht, nur eine unbekannte.
 RANK = {1: 0, 2: 1, 3: 2, OPEN_LEVEL: 3, 4: 4}
 
+# Wer vergleicht, kauft noch nicht. "beste dienstplan app" enthaelt zwar das
+# Stufe-2-Wort "app", ist aber Orientierung -- diese Marker schlagen Stufe 2.
+ORIENTATION_GUARD = [
+    r"\bbeste[rsn]?\b", r"\bwelche[rsn]?\b", r"\btop \d+", r"\bvergleich",
+    r"wie funktioniert", r"\bwas ist\b", r"\bwas sind\b", r"\bwarum\b",
+    r"\bwie (kann|macht|viel|lange)", r"\btest\b", r"testsieger",
+    r"\berfahrungen\b", r"\breview", r"\bempfehlung",
+]
+
+# Reihenfolge der Pruefung, nicht Reihenfolge der Stufen: die spezifischsten
+# Muster zuerst, damit ein generisches Wort kein spezifisches ueberstimmt.
+PRECEDENCE = (1, 3, "guard", 2, 4)
+
 _COMPILED = dict((lvl, (name, [re.compile(p) for p in pats]))
                  for lvl, (name, pats) in LADDER.items())
+_GUARD = [re.compile(p) for p in ORIENTATION_GUARD]
 
 
 def classify(keyword):
     """-> (stufe, name, ausloesendes_muster)."""
     padded = " %s " % keyword.lower().strip()
-    for lvl in (1, 2, 3, 4):
-        name, pats = _COMPILED[lvl]
+    for step in PRECEDENCE:
+        if step == "guard":
+            for p in _GUARD:
+                if p.search(padded):
+                    return 4, NAMES[4], p.pattern
+            continue
+        name, pats = _COMPILED[step]
         for p in pats:
             if p.search(padded):
-                return lvl, name, p.pattern
+                return step, name, p.pattern
     return OPEN_LEVEL, NAMES[OPEN_LEVEL], "-"
 
 

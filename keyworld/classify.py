@@ -29,11 +29,16 @@ UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/125.0 Safari/537.36")
 OVERRIDES_PATH = ROOT / "data" / "overrides.csv"
 MAX_BYTES = 400_000
-TIMEOUT = 8
+TIMEOUT = 12
 STALE_YEARS = 3
 CONFIDENCE_FLOOR = 0.50
 
-KINDS = ("product", "article", "forum", "marketplace", "aggregator", "unknown")
+KINDS = ("product", "article", "forum", "marketplace", "aggregator",
+         "download", "institution", "unknown")
+
+# Nur eine echte Produkt- oder Anbieterseite besetzt den Platz wirklich.
+# Alles andere ist von einem Produkt angreifbar.
+OCCUPYING = ("product",)
 
 # -- Domains, bei denen die Zuordnung sicher ist ------------------------------
 FORUM_DOMAINS = {          # UGC und soziale Plattformen: nie eine Produktseite
@@ -69,8 +74,49 @@ LD_ARTICLE = {"article", "blogposting", "newsarticle", "techarticle", "report"}
 LD_FORUM = {"discussionforumposting"}   # QAPage/FAQPage steht heute
                                        # auf jeder Marketingseite
 
+# Vorlagen-Downloadseiten. Fuer dieses Tool die interessanteste Kategorie:
+# der Markt will eine Vorlage, und wer rankt, verschenkt sie -- kein Produkt.
+DOWNLOAD_PATHS = [r"/download", r"vorlage", r"muster", r"template", r"formular",
+                  r"/vordruck", r"/arbeitshilfe"]
+DOWNLOAD_LINKS = re.compile(
+    r'href=["\'][^"\']+\.(xlsx?|xlsm|csv|ods|docx?|pptx?|pdf|zip)["\'?]', re.I)
+
+# Kammern, Verbaende, Behoerden, Berufsgenossenschaften. Ranken auf Autoritaet,
+# verkaufen aber nichts -- der Platz ist nicht von einem Produkt besetzt.
+INSTITUTION_DOMAINS = {
+    "wko.at", "ihk.de", "dihk.de", "handwerkskammer.de", "hwk.de",
+    "bghm.de", "bgbau.de", "bgw-online.de", "dguv.de", "baua.de",
+    "rki.de", "bfarm.de", "bzga.de", "gesundheit.gv.at", "kbv.de",
+    "arbeitsagentur.de", "bmas.de", "bundesfinanzministerium.de",
+    "datenschutz.de", "bfdi.bund.de", "verbraucherzentrale.de",
+    "mieterbund.de", "mieterschutzbund.de", "haus-und-grund.net",
+    "aok.de", "tk.de", "barmer.de", "dak.de", "ikk-classic.de", "kkh.de",
+    "vbg.de", "bgn.de", "bgetem.de", "bgrci.de", "vdek.de", "gkv-spitzenverband.de",
+}
+INSTITUTION_PATTERNS = [r"\.bund\.de$", r"\.gv\.at$", r"\.admin\.ch$",
+                        r"^kv[a-z]+\.de$", r"^bg[a-z]{0,5}\.de$", r"kammer",
+                        r"verein\.", r"-verein\.", r"verband", r"innung",
+                        r"genossenschaft", r"(^|\.)uni-", r"\.uni-",
+                        r"hochschule", r"^fh-", r"\.edu$", r"^stadt-", r"landkreis"]
+# Auch der Pfad verraet Verbandsseiten: hausundgrund.de/verein/dachau/...
+INSTITUTION_PATHS = [r"/verein", r"/verband", r"/kammer", r"/mitglied",
+                     r"/satzung", r"/geschaeftsstelle"]
+
+# Anbietersignale, die auch ohne Structured Data greifen: die Navigation
+# einer Softwareseite fuehrt praktisch immer zu Preisen oder Funktionen.
+RE_NAV_PRODUCT = re.compile(
+    r'href=["\'][^"\']*/(preise|pricing|plans|tarife|funktionen|features|'
+    r'produkt|product|demo|testen|trial|abo)[/"\']', re.I)
+RE_VENDOR_TXT = re.compile(
+    r"(jetzt anfragen|demo vereinbaren|demo buchen|unverbindlich testen|"
+    r"kostenlose testphase|zur (software|app)|unsere (software|l(oe|ö)sung)|"
+    r"in den warenkorb|zzgl\. mwst|inkl\. mwst)", re.I)
+
 PATH_PRODUCT = [r"/pricing", r"/preise", r"/plans", r"/tarife", r"/signup",
-                r"/registrier", r"/kaufen", r"/produkt", r"/features", r"/testen"]
+                r"/registrier", r"/kaufen", r"/produkt", r"/features", r"/testen",
+                # Anbieterseiten ohne Structured Data verraten sich im Pfad
+                r"/software", r"/cloud", r"[-/]app(/|$|\.)", r"/tool",
+                r"/anwendung", r"/loesung", r"/l(oe|ö)sung", r"/leistungen"]
 PATH_ARTICLE = [r"/blog", r"/magazin", r"/ratgeber", r"/news", r"/artikel",
                 r"/wissen", r"/guide", r"/tipps", r"/journal", r"/lexikon", r"/academy"]
 PATH_FORUM = [r"/thread", r"/topic", r"/forum", r"/viewtopic", r"/t/", r"/comments/",
@@ -163,6 +209,12 @@ def _polite(domain, min_gap=0.7):
         _last_hit[domain] = time.time()
 
 
+def looks_like_file(url):
+    """Dateiendung in der URL -- Abruf unnoetig, Einordnung eindeutig."""
+    path = (urlparse(url or "").path or "").lower()
+    return path.endswith(DOWNLOAD_EXT + (".pdf", ".zip", ".pptx", ".ppt"))
+
+
 def fetch(url, session=None):
     """-> (html, final_url, error). Begrenzt auf MAX_BYTES."""
     s = session or requests.Session()
@@ -216,8 +268,9 @@ def signals_for(url, html_text):
     why, path = [], (urlparse(url).path or "").lower()
     meta = {"lang": None, "published": None, "download": False}
 
-    if path.endswith(DOWNLOAD_EXT):
+    if looks_like_file(url):
         meta["download"] = True
+        scores["download"] += 5
         why.append("Download-Datei")
 
     for pats, kind, pts, tag in ((PATH_PRODUCT, "product", 3, "Pfad"),
@@ -234,6 +287,15 @@ def signals_for(url, html_text):
         meta["published"] = "%s-%02d-01" % (m.group(1), int(m.group(2)))
         why.append("Datum in URL %s" % m.group(1))
 
+    dom = _norm(urlparse(url or "").netloc)
+    if _in_group(dom, INSTITUTION_DOMAINS) or any(
+            re.search(p, dom) for p in INSTITUTION_PATTERNS):
+        scores["institution"] += 4
+        why.append("Institution/Verband")
+    elif any(re.search(p, path) for p in INSTITUTION_PATHS):
+        scores["institution"] += 2
+        why.append("Verbandsbereich im Pfad")
+
     if not html_text:
         return scores, why, meta
 
@@ -245,6 +307,19 @@ def signals_for(url, html_text):
         if hit:
             scores[kind] += 3
             why.append("Structured Data %s" % "/".join(sorted(hit)))
+
+    hit = next((p for p in DOWNLOAD_PATHS if re.search(p, path)), None)
+    if hit and DOWNLOAD_LINKS.search(html_text):
+        scores["download"] += 3
+        meta["download"] = True
+        why.append("Vorlagenseite mit Dateilink")
+
+    if RE_NAV_PRODUCT.search(html_text):
+        scores["product"] += 2
+        why.append("Navigation zu Preisen/Funktionen")
+    if RE_VENDOR_TXT.search(html_text):
+        scores["product"] += 2
+        why.append("Anbietersprache")
 
     if RE_PRICE.search(html_text):
         scores["product"] += 2
@@ -262,7 +337,11 @@ def signals_for(url, html_text):
     d = RE_DATE_META.search(html_text)
     if d:
         meta["published"] = d.group(1)
-        scores["article"] += 1
+        # Ein Datum allein ist ein CMS-Artefakt und beweist keinen Artikel.
+        # Es zaehlt nur, wenn ein zweites Artikelsignal da ist -- sonst
+        # druecken Produktseiten mit Datum unter die Schwelle.
+        if scores["article"] > 0:
+            scores["article"] += 1
         why.append("Veroeffentlichungsdatum %s" % d.group(1))
     lang = RE_LANG.search(html_text)
     if lang:
@@ -274,8 +353,8 @@ def verdict_from_scores(scores, why, meta):
     total = sum(scores.values())
     if total == 0:
         return {"kind": "unknown", "confidence": 0.0, "why": why or ["keine Signale"],
-                "lang": meta["lang"], "published": meta["published"],
-                "download": meta["download"]}
+                "scores": {}, "lang": meta["lang"],
+                "published": meta["published"], "download": meta["download"]}
     kind = max(scores, key=lambda k: scores[k])
     best = scores[kind]
     # Reinheit (wie widerspruchsfrei) mal Beleglage (wie viel ueberhaupt).
@@ -285,6 +364,7 @@ def verdict_from_scores(scores, why, meta):
     evidence = min(1.0, 0.35 + 0.65 * (best / 5.0))
     confidence = round(purity * evidence, 2)
     return {"kind": kind, "confidence": confidence, "why": why,
+            "scores": dict((k, v) for k, v in scores.items() if v),
             "lang": meta["lang"], "published": meta["published"],
             "download": meta["download"]}
 
@@ -312,10 +392,17 @@ def classify_url(url, domain, overrides, session=None, fetch_page=True):
         return forced
 
     for group, kind in ((FORUM_DOMAINS, "forum"), (MARKETPLACE_DOMAINS, "marketplace"),
-                        (AGGREGATOR_DOMAINS, "aggregator"), (ARTICLE_DOMAINS, "article")):
+                        (AGGREGATOR_DOMAINS, "aggregator"), (ARTICLE_DOMAINS, "article"),
+                        (INSTITUTION_DOMAINS, "institution")):
         if _in_group(dom, group):
             return {"kind": kind, "confidence": 0.95, "why": ["bekannte Domain"],
                     "lang": None, "published": None, "download": False, "source": "liste"}
+
+    if looks_like_file(url):
+        scores, why, meta = signals_for(url, "")
+        v = verdict_from_scores(scores, why, meta)
+        v["source"] = "datei"
+        return v
 
     html_text, final, err = ("", url, None) if not fetch_page else fetch(url, session)
     scores, why, meta = signals_for(final, html_text)

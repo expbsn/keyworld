@@ -1,5 +1,9 @@
 """SERP-Analyse: Schwaechesignale und Difficulty aus den Top 10.
 
+Besetzt ist ein Platz nur von einer echten Produkt- oder Anbieterseite.
+Vorlagen-Downloads, Behoerden, Verbaende, Foren, Portale und Ratgeber sind
+von einem Produkt angreifbar -- sie halten den Platz, verkaufen aber nichts.
+
 Difficulty wird nur aus Treffern gerechnet, die sicher eingestuft sind.
 Unsichere und unbekannte zaehlen NICHT als Produktseite -- sonst wuerde jede
 unbekannte Domain die Difficulty hochtreiben und die Chance verstecken.
@@ -74,14 +78,20 @@ def weak_signals(serp, market_lang="de"):
         flags.append("ALT")
     if len(langs) >= 2 and all(l != market_lang for l in langs):
         flags.append("NUR-EN")
-    if any(o["download"] for o in top):
-        flags.append("VORLAGE")
+    n_dl = sum(1 for o in top if o["download"] or o["kind"] == "download")
+    if n_dl:
+        flags.append("VORLAGE%d" % n_dl if n_dl > 1 else "VORLAGE")
     if any(o["kind"] == "aggregator" for o in sure):
         flags.append("PORTAL")
+    n_inst = sum(1 for o in sure if o["kind"] == "institution")
+    if n_inst:
+        flags.append("AMT%d" % n_inst if n_inst > 1 else "AMT")
     n_unsure = len(top) - len(sure)
     if n_unsure >= 3:
         flags.append("UNKLAR%d" % n_unsure)
-    return flags, {"top_n": len(top), "sure_top": len(sure), "articles_top": n_article}
+    return flags, {"top_n": len(top), "sure_top": len(sure),
+                   "articles_top": n_article, "downloads_top": n_dl,
+                   "institutions_top": n_inst}
 
 
 def analyse(serp, incumbents=None, market_lang="de"):
@@ -110,7 +120,7 @@ def analyse(serp, incumbents=None, market_lang="de"):
 
     if len(sure) < MIN_CLASSIFIED:
         # Zu duenne Beleglage. Nicht raten, nicht aussortieren -- zeigen.
-        base.update({"difficulty": None, "product_share": None,
+        base.update({"difficulty": None, "spread": None, "product_share": None,
                      "serp_intent": "?", "review": True,
                      "why": "nur %d von %d Treffern sicher eingestuft"
                             % (len(sure), len(org))})
@@ -127,7 +137,13 @@ def analyse(serp, incumbents=None, market_lang="de"):
     else:
         serp_intent = "RED"
 
+    # Wie stark eine einzelne Umstufung die Difficulty verschoebe. Bei sechs
+    # sicheren Treffern sind das 8 Punkte -- zwei Keywords, die naeher
+    # beieinander liegen, sind nicht unterscheidbar. Das gehoert in die
+    # Ausgabe, nicht in eine Fussnote.
+    spread = round(50.0 / len(sure), 1)
     base.update({"difficulty": int(round(difficulty)),
+                 "spread": spread,
                  "product_share": round(product_share, 2),
                  "serp_intent": serp_intent,
                  "review": base["unsure"] >= 3,

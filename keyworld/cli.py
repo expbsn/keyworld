@@ -217,7 +217,8 @@ def cmd_scout(args):
                 serp_intent=a.get("serp_intent", ""), trend=m.trend_ratio(),
                 subject=subjects.get(m.keyword, ""),
                 top_domains=" ".join(a.get("top_domains", [])[:4]),
-                sure=a.get("sure"), unsure=a.get("unsure"), run_id=run.run_id)
+                sure=a.get("sure"), unsure=a.get("unsure"), run_id=run.run_id,
+                spread=a.get("spread"))
             prev = known.get(m.keyword, {})
             rows.append(dict(m.to_dict(), tier=lvl, tier_name=name, serp=a or None,
                              state=prev.get("state", st), note=prev.get("note", ""),
@@ -225,7 +226,7 @@ def cmd_scout(args):
         run.commit()
 
         cols = [("kw", "KEYWORD", 32, "l"), ("tier", "T", 1, "r"),
-                ("diff", "DIFF", 4, "r"), ("viz", "", 8, "l"),
+                ("diff", "DIFF", 7, "r"), ("viz", "", 8, "l"),
                 ("si", "SERP", 4, "l"), ("sure", "SICH", 4, "r"),
                 ("trend", "TR", 4, "r"), ("flags", "SIGNALE", 18, "l"),
                 ("cpc", "CPC", 6, "r"), ("vol", "VOL", 6, "r"),
@@ -285,13 +286,26 @@ def cmd_scout(args):
 
 
 def _subject_map(args, keywords):
-    """Ordnet jedes Keyword seinem Themengebiet zu -- laengste Uebereinstimmung."""
+    """Ordnet jedes Keyword seinem Themengebiet zu -- laengste Uebereinstimmung.
+
+    Seeds zaehlen als Gebiet. Ohne das faellt bei --seed-Laeufen jedes
+    Keyword in eine eigene Gruppe, die Platzhirsch-Suche laeuft ueber je
+    eine SERP und findet nie etwas -- der Term verschwaende still.
+    """
     from .generate import read_list
-    subjects = list(args.domain) + (read_list(args.domains) if args.domains else [])
-    subjects = sorted((s.strip().lower() for s in subjects), key=len, reverse=True)
+    subjects = list(args.domain) + list(args.seed)
+    if args.domains:
+        subjects += read_list(args.domains)
+    subjects = sorted(set(x.strip().lower() for x in subjects if x.strip()),
+                      key=len, reverse=True)
     out = {}
     for kw in keywords:
-        out[kw] = next((s for s in subjects if s in kw), kw)
+        hit = next((x for x in subjects if x in kw), None)
+        if hit is None:
+            # Kein Gebiet erkannt: erstes Wort als Naeherung, damit verwandte
+            # Keywords wenigstens zusammenfallen statt zu vereinzeln.
+            hit = kw.split()[0] if kw.split() else kw
+        out[kw] = hit
     return out
 
 
@@ -318,7 +332,10 @@ def _row(m, lvl, analysis, incumbents, n_variants=0):
     d = a.get("difficulty")
     t = m.trend_ratio()
     inc = [x for x in a.get("top_domains", []) if x in incumbents]
-    return {"kw": m.keyword, "tier": lvl, "diff": d, "viz": bar(d, 100, 8),
+    sp = a.get("spread")
+    return {"kw": m.keyword, "tier": lvl,
+            "diff": "?" if d is None else ("%d\u00b1%d" % (d, round(sp)) if sp else str(d)),
+            "viz": bar(d, 100, 8),
             "trend": ("%.2f" % t)[1:] if t else "-",
             "var": ("+%d" % n_variants) if n_variants else "",
             "si": a.get("serp_intent", ""),
@@ -399,11 +416,12 @@ def cmd_fetch(args):
 
 def cmd_costs(args):
     if args.run:
-        from .store import connect
-        shim = Run.__new__(Run)
-        shim.conn, shim.run_id, shim.seed = connect(), args.run, ""
-        shim.budget = Config.run_budget_usd
-        print(cost_report(shim))
+        from .store import RunView
+        view = RunView(args.run)
+        if not view.exists:
+            print("  Run %s nicht gefunden." % args.run, file=sys.stderr)
+            return 1
+        print(cost_report(view))
         return 0
     print(head("RUNS"))
     print(table([{"run_id": r["run_id"], "seed": r["seed"], "calls": r["calls"],

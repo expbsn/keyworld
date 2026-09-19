@@ -116,14 +116,31 @@ sondern die falsche Suchabsicht.
 ## Klassifikation
 
 Statt Domain-Listen werden die Seiten selbst gelesen, nebenlaeufig, mit
-30-Tage-Cache. Kostet nichts ausser Zeit -- rund 30 Seiten in 5 Sekunden.
+30-Tage-Cache. Kostet nichts ausser Zeit -- rund 450 Seiten in vier Minuten.
+82 % werden sicher eingestuft.
 
-    Produkt   /pricing /preise /plans /signup, Preistabelle pro Monat,
-              "kostenlos testen"/"jetzt starten", SoftwareApplication
-              oder Product als Structured Data
-    Artikel   Article/BlogPosting, Autoren-Markup, Veroeffentlichungsdatum,
-              Datum in der URL, /blog /magazin /ratgeber
-    Forum     DiscussionForumPosting, Thread-Markup, Antwortzaehler
+Besetzt ist ein Platz nur von einer echten Produkt- oder Anbieterseite.
+Alles andere haelt den Platz, verkauft aber nichts, und ist von einem
+Produkt angreifbar.
+
+    Produkt      /pricing /preise /plans /signup /software /cloud, Pfad mit
+                 -app, Preistabelle pro Monat, "kostenlos testen",
+                 Navigation zu Preisen oder Funktionen, Anbietersprache,
+                 SoftwareApplication oder Product als Structured Data
+    Artikel      Article/BlogPosting, Autoren-Markup, Datum in der URL,
+                 /blog /magazin /ratgeber
+    Forum        DiscussionForumPosting, Thread-Markup, Antwortzaehler
+    Vorlage      Downloaddatei oder Vorlagenseite mit Dateilink. Fuer dieses
+                 Tool die interessanteste Kategorie: der Markt will eine
+                 Vorlage, und wer rankt, verschenkt sie
+    Institution  Kammern, Verbaende, Berufsgenossenschaften, Krankenkassen,
+                 Behoerden, Hochschulen. Ranken auf Autoritaet
+    Marktplatz   Amazon, App Store, Play Store
+    Aggregator   Capterra, OMR, Vergleichsportale
+
+Ein Veroeffentlichungsdatum zaehlt NICHT als eigenstaendiger Artikelbeleg --
+es steht als CMS-Artefakt auf zahllosen Produktseiten und drueckte sie
+frueher unter die Schwelle.
 
 Jedes Urteil traegt eine Confidence aus Reinheit (wie widerspruchsfrei) mal
 Beleglage (wie viel ueberhaupt):
@@ -135,6 +152,26 @@ Beleglage (wie viel ueberhaupt):
     Widerspruch 3 zu 3     0,37   -> Pruefliste
 
 Unter 0,50 wird nichts bewertet, sondern zur Pruefung gelegt.
+
+## Die Difficulty sagt, wie genau sie ist
+
+Jede Difficulty traegt eine Unschaerfe: `21±7` heisst, dass eine einzige
+andere Einstufung unter den Top 10 den Wert um 7 Punkte verschoebe. Sie
+ergibt sich aus der Zahl sicher eingestufter Treffer (50 geteilt durch sie).
+
+Bei sieben sicheren Treffern sind das rund 7 Punkte. Zwei Keywords, die
+naeher beieinander liegen, sind nicht unterscheidbar -- und wo die
+Unschaerfe den Wert uebersteigt (`8±10`), bedeutet die Rangposition
+nichts. Das gehoert in die Ausgabe, nicht in eine Fussnote.
+
+## Tests
+
+    ./.venv/bin/python -m unittest discover -s tests
+
+21 Tests ueber die reinen Funktionen: Absichtsstufen samt Wortgrenzen,
+Filterreihenfolge, Confidence-Kalibrierung, Difficulty bei duenner
+Beleglage, Schwaechesignale, Verdichtung. Kein Netz, keine API, keine
+Kosten.
 
 ## Korrekturen sind Daten, kein Code
 
