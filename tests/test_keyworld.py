@@ -329,7 +329,8 @@ class Doku(unittest.TestCase):
     stand trotzdem noch in der Anleitung."""
 
     COMMANDS = ("scout", "gen", "review", "queue", "costs", "serve",
-                "discover", "rescore", "fetch", "probe", "dive")
+                "discover", "rescore", "fetch", "probe", "dive",
+                "compare")
     FLAG = re.compile(r"(?<![\w-])--[a-z][a-z-]{2,}")
 
     def _known_flags(self):
@@ -344,7 +345,11 @@ class Doku(unittest.TestCase):
 
     def test_versprochene_flags_existieren(self):
         readme = (Path(__file__).parent.parent / "README.md").read_text()
-        promised = set(self.FLAG.findall(readme))
+        # Zeilen ueber fremde Werkzeuge ausklammern: 'git commit --no-verify'
+        # ist kein Keyworld-Flag und soll den Abgleich nicht ausloesen.
+        eigen = [l for l in readme.splitlines()
+                 if not re.search(r"\b(git|pip|python|cp|curl)\b", l)]
+        promised = set(self.FLAG.findall("\n".join(eigen)))
         fehlend = sorted(promised - self._known_flags())
         self.assertEqual(fehlend, [],
                          "in README versprochen, aber nicht im CLI: %s" % fehlend)

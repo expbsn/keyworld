@@ -230,6 +230,11 @@ Die Schwelle 0,50 sitzt auf einem Plateau: 0,45 liefert dieselben 82 %,
 
     ./.venv/bin/python -m unittest discover -s tests
 
+Ein pre-commit-Hook laeuft sie automatisch und bricht rote Commits ab
+(`git commit --no-verify` erzwingt). Der Hook liegt unter
+`.git/hooks/pre-commit` und wird von git nicht versioniert -- nach einem
+frischen Clone neu anlegen.
+
 21 Tests ueber die reinen Funktionen: Absichtsstufen samt Wortgrenzen,
 Filterreihenfolge, Confidence-Kalibrierung, Difficulty bei duenner
 Beleglage, Schwaechesignale, Verdichtung. Kein Netz, keine API, keine
