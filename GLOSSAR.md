@@ -233,6 +233,12 @@ kostenlos ein.
 Daten (0 $), `standard` holt das echte Keyword-Umfeld (0,12 $), `tief`
 zusaetzlich die fehlenden SERPs (0,14 $).
 
+**Entdoppelt** — Google meldet fuer `fusspflege`, `fußpflege`, `fusspflege app` und
+`app fuer fusspflege` identische Zahlen: es ist dieselbe Suche. Addiert ergaebe
+das eine doppelt so grosse Marktgroesse. Vor jeder Markteinschaetzung werden
+Umlaut- und Wortstellungsvarianten deshalb zusammengefasst (bei einem Gebiet
+11 % weniger, bei `stundenplan` 6 %).
+
 **CPC volumengewichtet** — Der CPC des Feldes, gewichtet nach Suchvolumen.
 Ein Keyword mit 20 EUR und 10 Suchen darf einen Markt nicht schoenrechnen,
 in dem 10.000 Suchen bei 0,30 EUR liegen. Das ist die Zahl, die sagt, ob

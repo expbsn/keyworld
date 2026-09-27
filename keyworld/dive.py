@@ -33,6 +33,35 @@ CPC_REFERENZ = [
 ]
 
 
+UMLAUTE = (("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("ß", "ss"))
+FUELLWORTER = r"\b(fuer|von|der|die|das|den|dem|ein|eine|einen|im|in|mit)\b"
+
+
+def normform(keyword):
+    """Vergleichsform: Umlaute gefaltet, Fuellwoerter weg, Woerter sortiert.
+
+    Google bewertet 'fusspflege', 'fußpflege', 'fusspflege app' und 'app fuer fusspflege'
+    als dieselbe Suche und meldet identische Zahlen. Sie zu addieren
+    verdoppelt die Marktgroesse.
+    """
+    k = keyword.lower()
+    for a, b in UMLAUTE:
+        k = k.replace(a, b)
+    k = re.sub(FUELLWORTER, " ", k)
+    k = re.sub(r"[^a-z0-9 ]", " ", k)
+    return " ".join(sorted(k.split()))
+
+
+def dedupe(metrics):
+    """Varianten zusammenfassen, die volumenstaerkste behalten."""
+    best = {}
+    for m in metrics:
+        k = normform(m.keyword)
+        if k not in best or (m.search_volume or 0) > (best[k].search_volume or 0):
+            best[k] = m
+    return list(best.values())
+
+
 def stem(keyword):
     """Das erste Wort als Naeherung fuer das Gebiet."""
     parts = re.split(r"\s+", keyword.strip().lower())
@@ -98,7 +127,12 @@ def season_curve(metrics):
 
 
 def monetarisierung(metrics):
-    """Wie viel Geld steckt im Markt -- gewichtet nach Volumen."""
+    """Wie viel Geld steckt im Markt -- gewichtet nach Volumen.
+
+    Vorher entdoppelt: Umlaut- und Wortstellungsvarianten meldet Google mit
+    identischen Zahlen, addiert ergaeben sie eine zu grosse Marktgroesse.
+    """
+    metrics = dedupe(metrics)
     paare = [(m.cpc or 0.0, m.search_volume or 0) for m in metrics if m.search_volume]
     if not paare:
         return None
@@ -110,6 +144,7 @@ def monetarisierung(metrics):
     return {"cpc_gewichtet": round(gewichtet, 2),
             "cpc_max": round(hoechster[0], 2),
             "volumen_gesamt": vol,
+            "keywords_entdoppelt": len(metrics),
             "competition_median": sorted(comps)[len(comps) // 2] if comps else None,
             "urteil": urteil}
 

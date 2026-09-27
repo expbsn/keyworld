@@ -441,7 +441,8 @@ def cmd_dive(args):
             print("  CPC volumengewichtet: %.2f EUR   hoechster: %.2f EUR"
                   % (g["cpc_gewichtet"], g["cpc_max"]))
             print("  Wettbewerbsindex Median: %s von 100" % g["competition_median"])
-            print("  Gesamtvolumen: %d/Monat" % g["volumen_gesamt"])
+            print("  Gesamtvolumen: %d/Monat ueber %d Keywords (entdoppelt)"
+                  % (g["volumen_gesamt"], g["keywords_entdoppelt"]))
             print("  Einordnung: %s%s%s" % (BOLD, g["urteil"], RST))
 
         print()

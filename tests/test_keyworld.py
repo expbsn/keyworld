@@ -247,6 +247,20 @@ class Dive(unittest.TestCase):
                            dive.estimate("standard", 25, T())[0])
 
 
+class Entdoppeln(unittest.TestCase):
+    def test_umlaut_und_wortstellung(self):
+        self.assertEqual(dive.normform("Fußpflege"), dive.normform("fusspflege"))
+        self.assertEqual(dive.normform("fusspflege app"), dive.normform("app fuer fusspflege"))
+        self.assertNotEqual(dive.normform("dienstplan app"), dive.normform("dienstplan"))
+
+    def test_marktgroesse_wird_nicht_verdoppelt(self):
+        m = [km("fusspflege", vol=4400, cpc=16.31), km("fußpflege", vol=4400, cpc=16.31),
+             km("fusspflege app", vol=590, cpc=9.1), km("app für fusspflege", vol=590, cpc=9.1)]
+        g = dive.monetarisierung(m)
+        self.assertEqual(g["volumen_gesamt"], 4990)     # nicht 9980
+        self.assertEqual(g["keywords_entdoppelt"], 2)
+
+
 class Vergleich(unittest.TestCase):
     def test_marken_werden_erkannt(self):
         import tempfile
