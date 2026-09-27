@@ -489,6 +489,61 @@ def cmd_dive(args):
     return 0
 
 
+def cmd_compare(args):
+    """Gebiete nebeneinander, rein aus dem Cache. Kostet nichts."""
+    from .dive import compare
+    from .store import connect, keyword_rows
+
+    market = Config.market()
+    rows = keyword_rows(market, args.state)
+    if args.serp:
+        rows = [r for r in rows if (r["serp_intent"] or "") == args.serp]
+    if not args.include_rejected:
+        rows = [r for r in rows if r["state"] != "rejected"]
+    subjects = [r["subject"] or r["keyword"].split()[0] for r in rows]
+
+    print(head("VERGLEICH  %d Gebiete  markt=%s%s"
+               % (len(set(subjects)), market,
+                  "  serp=%s" % args.serp if args.serp else "")))
+    if not subjects:
+        print("  Nichts zu vergleichen. Erst scouten.")
+        return 0
+
+    erg = compare(subjects, connect())
+    if not args.include_brands:
+        marken = [r for r in erg if r["ist_marke"]]
+        erg = [r for r in erg if not r["ist_marke"]]
+        if marken:
+            print("  %s%d Marken ausgeblendet (%s) -- dort hat jemand bereits"
+                  " gewonnen, --include-brands zeigt sie%s"
+                  % (DIM, len(marken), ", ".join(r["subject"] for r in marken[:5]), RST))
+    print(table([{
+        "g": r["subject"] + (" *" if r["ist_marke"] else ""),
+        "kw": r["keywords"], "vol": r["volumen"],
+        "cpc": ("%.2f" % r["cpc"]) if r["cpc"] else "-",
+        "max": ("%.2f" % r["cpc_max"]) if r["cpc_max"] else "-",
+        "comp": r["competition"], "sai": ("%.1f" % r["saison"]) if r["saison"] else "-",
+        "prod": "%d%%" % round(100 * r["produkt_anteil"]),
+        "gratis": "%d%%" % round(100 * r["gratis_anteil"]),
+        "u": r["urteil"]} for r in erg[:args.top]],
+        [("g", "GEBIET", 24, "l"), ("kw", "KW", 4, "r"), ("vol", "VOL/MON", 8, "r"),
+         ("cpc", "CPC", 6, "r"), ("max", "MAX", 6, "r"), ("comp", "COMP", 4, "r"),
+         ("sai", "SAI", 4, "r"), ("prod", "PROD", 5, "r"),
+         ("gratis", "GRATIS", 6, "r"), ("u", "EINORDNUNG", 26, "l")]))
+    print(rule("-"))
+    lohnt = [r for r in erg if (r["cpc"] or 0) >= args.min_cpc]
+    print("  %d von %d Gebieten ueber %.2f EUR gewichtetem CPC" %
+          (len(lohnt), len(erg), args.min_cpc))
+    if lohnt:
+        print("  Bezahlter Dive lohnt bei: %s"
+              % ", ".join(r["subject"] for r in lohnt[:6]))
+    if args.json:
+        open(args.json, "w", encoding="utf-8").write(
+            json.dumps(erg, ensure_ascii=False, indent=2))
+        print("  -> %s" % args.json)
+    return 0
+
+
 def cmd_rescore(args):
     """Urteile aus gespeicherten Rohsignalen neu ableiten. Kein Abruf, 0 $."""
     import json as _json
@@ -660,6 +715,17 @@ def main(argv=None):
     dv.add_argument("--top", type=int, default=20)
     dv.add_argument("--json")
     dv.set_defaults(fn=cmd_dive)
+
+    cp = sub.add_parser("compare", help="Gebiete nebeneinander, aus dem Cache")
+    cp.add_argument("--serp", choices=("PROD", "MIX", "RED"))
+    cp.add_argument("--state", choices=STATES)
+    cp.add_argument("--include-rejected", action="store_true")
+    cp.add_argument("--include-brands", action="store_true",
+                    help="Markennamen mitzeigen (Standard: aus)")
+    cp.add_argument("--min-cpc", type=float, default=3.0)
+    cp.add_argument("--top", type=int, default=30)
+    cp.add_argument("--json")
+    cp.set_defaults(fn=cmd_compare)
 
     rs = sub.add_parser("rescore", help="Urteile aus Rohsignalen neu ableiten")
     rs.add_argument("--dry-run", action="store_true")

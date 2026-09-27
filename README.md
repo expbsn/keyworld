@@ -164,6 +164,24 @@ naeher beieinander liegen, sind nicht unterscheidbar -- und wo die
 Unschaerfe den Wert uebersteigt (`8±10`), bedeutet die Rangposition
 nichts. Das gehoert in die Ausgabe, nicht in eine Fussnote.
 
+## Gebiete vergleichen
+
+    ./keyworld.sh compare --serp PROD
+
+Der schnelle Dive ueber alle Gebiete der Shortlist auf einmal, rein aus
+dem Cache, 0 $. Beantwortet die Frage VOR der Frage: welches Gebiet
+verdient ueberhaupt einen bezahlten Dive.
+
+Sortiert nach volumengewichtetem CPC. Markennamen aus `data/brands.txt`
+werden ausgeblendet -- ihr hoher CPC kommt daher, dass Wettbewerber auf
+einen fremden Namen bieten, und dort hat jemand bereits gewonnen.
+`--include-brands` zeigt sie mit `*` markiert.
+
+Die Spalte `PROD` ist dabei wichtiger als `CPC`: sie sagt, welcher Anteil
+aller Treffer im Feld echte Produktseiten sind. Ein Feld mit hohem CPC und
+niedrigem Produktanteil ist entweder redaktionell besetzt oder ein Markt,
+in den Google keine Produkte laesst.
+
 ## Tiefenanalyse
 
 Die Shortlist beantwortet "welches Gebiet lohnt einen Blick". Der Dive

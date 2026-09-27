@@ -265,6 +265,7 @@ oder Gratis-Vorlagen sitzen.
 | `scout` | Der eigentliche Lauf | ab 0,06 $ |
 | `review` | Zustand und Notiz je Keyword | 0 |
 | `queue` | Overrides anzeigen und ergaenzen | 0 |
+| `compare` | Gebiete nebeneinander, aus dem Cache | 0 |
 | `dive` | Tiefenanalyse eines Gebiets | 0 bis 0,14 $ |
 | `rescore` | Urteile aus Rohsignalen neu ableiten | 0 |
 | `serve` | Interface im Browser | 0 |

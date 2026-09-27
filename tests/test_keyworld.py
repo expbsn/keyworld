@@ -247,6 +247,19 @@ class Dive(unittest.TestCase):
                            dive.estimate("standard", 25, T())[0])
 
 
+class Vergleich(unittest.TestCase):
+    def test_marken_werden_erkannt(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False,
+                                         encoding="utf-8") as fh:
+            fh.write("# Kommentar\nlexoffice\nSevDesk\n\n")
+            pfad = fh.name
+        self.assertEqual(dive.load_brands(pfad), {"lexoffice", "sevdesk"})
+
+    def test_fehlende_markendatei_ist_kein_fehler(self):
+        self.assertEqual(dive.load_brands("/gibt/es/nicht.txt"), set())
+
+
 class Rendern(unittest.TestCase):
     """Zellen mit Farbcodes.
 

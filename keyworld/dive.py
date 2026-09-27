@@ -143,6 +143,71 @@ def fragen(serps, limit=25):
             "related": list(dict.fromkeys(related))[:limit]}
 
 
+def load_brands(path=None):
+    """Markennamen aus data/brands.txt. Eine Marke ist kein Gebiet: ihr hoher
+    CPC kommt daher, dass Wettbewerber auf einen fremden Namen bieten. Dort
+    ist nichts zu betreten, dort hat jemand bereits gewonnen."""
+    from pathlib import Path
+
+    from .config import ROOT
+    p = Path(path or ROOT / "data" / "brands.txt")
+    if not p.exists():
+        return set()
+    out = set()
+    for line in p.read_text(encoding="utf-8").splitlines():
+        line = line.split("#")[0].strip().lower()
+        if line:
+            out.add(line)
+    return out
+
+
+def compare(subjects, conn, pages=None):
+    """Der schnelle Dive ueber viele Gebiete auf einmal, rein aus dem Cache.
+
+    Beantwortet die Frage vor der Frage: welches Gebiet verdient ueberhaupt
+    einen bezahlten Dive. Die Caches werden einmal geladen statt je Gebiet --
+    sonst skaliert das quadratisch.
+    """
+    pages = _pages_from_cache(conn) if pages is None else pages
+    alle_serps = {}
+    for r in conn.execute("SELECT keyword, payload FROM kw_cache"
+                          " WHERE source='dataforseo:serp'"):
+        try:
+            alle_serps[r["keyword"]] = json.loads(r["payload"])
+        except ValueError:
+            pass
+
+    marken = load_brands()
+    out = []
+    for subject in dict.fromkeys(s.strip().lower() for s in subjects if s.strip()):
+        metrics = _metrics_from_cache(conn, subject)
+        if not metrics:
+            continue
+        serps = dict((k, v) for k, v in alle_serps.items() if subject in k)
+        geld = monetarisierung(metrics)
+        season = season_curve(metrics)
+        land = serp_landschaft(serps, pages)
+        anteile = land["anteile"]
+        out.append({
+            "subject": subject,
+            "ist_marke": subject in marken,
+            "keywords": len(metrics),
+            "volumen": geld["volumen_gesamt"] if geld else 0,
+            "cpc": geld["cpc_gewichtet"] if geld else None,
+            "cpc_max": geld["cpc_max"] if geld else None,
+            "competition": geld["competition_median"] if geld else None,
+            "urteil": geld["urteil"] if geld else "keine Daten",
+            "saison": season["ratio"] if season else None,
+            "serps": land["serps"],
+            "produkt_anteil": anteile.get("product", 0.0),
+            "gratis_anteil": round(anteile.get("download", 0.0)
+                                   + anteile.get("marketplace", 0.0), 2),
+            "unklar_anteil": anteile.get("unknown", 0.0),
+        })
+    out.sort(key=lambda r: -(r["cpc"] or 0))
+    return out
+
+
 def estimate(scope, n_missing_serps, dfs):
     """Kosten VOR dem Abruf. Gibt (usd, beschreibung) zurueck."""
     if scope == "schnell":
