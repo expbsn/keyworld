@@ -399,6 +399,96 @@ def cmd_queue(args):
     return 0
 
 
+MONATE = ["", "Jan", "Feb", "Mrz", "Apr", "Mai", "Jun",
+          "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]
+
+
+def cmd_dive(args):
+    from .dive import estimate, run_dive
+    from .providers import DataForSEO
+    if not Config.has_dataforseo():
+        print("  Keine DataForSEO-Credentials.", file=sys.stderr)
+        return 1
+
+    with Run(seed="dive:%s" % args.keyword, budget_usd=args.budget) as run:
+        dfs = DataForSEO(live=False)
+        kosten, was = estimate(args.scope, args.max_serps, dfs)
+        print(head("DIVE  %s  umfang=%s" % (args.keyword, args.scope)))
+        print("  Geschaetzt: %s  (%s)" % (money(kosten), was))
+        if not args.go and args.scope != "schnell":
+            print(rule("-"))
+            print("  %sTrockenlauf.%s Mit --go tatsaechlich abrufen." % (BOLD, RST))
+            return 0
+
+        d = run_dive(args.keyword, run, dfs, args.scope, args.max_serps)
+        if d["gekauft"]:
+            print("  Gekauft: %s" % ", ".join(d["gekauft"]))
+
+        s = d["season"]
+        if s:
+            print()
+            print("%sSAISON  %s%s" % (BOLD, s["keyword"], RST))
+            print("  Spitze %d im %s, Tal %d, Verhaeltnis %.1fx, Jahresschnitt %s"
+                  % (s["peak"], MONATE[s["peak_month"]], s["trough"], s["ratio"], s["avg"]))
+            for y, mo, v in s["months"]:
+                print("  %s %02d %6d  %s" % (MONATE[mo], y % 100, v,
+                                             "#" * int(round(34 * v / s["peak"]))))
+
+        g = d["geld"]
+        if g:
+            print()
+            print("%sGELD IM MARKT%s" % (BOLD, RST))
+            print("  CPC volumengewichtet: %.2f EUR   hoechster: %.2f EUR"
+                  % (g["cpc_gewichtet"], g["cpc_max"]))
+            print("  Wettbewerbsindex Median: %s von 100" % g["competition_median"])
+            print("  Gesamtvolumen: %d/Monat" % g["volumen_gesamt"])
+            print("  Einordnung: %s%s%s" % (BOLD, g["urteil"], RST))
+
+        print()
+        print("%sKEYWORD-UMFELD%s" % (BOLD, RST))
+        rows = [{"kw": r["keyword"], "t": r["tier"], "vol": r["volume"],
+                 "cpc": r["cpc"], "comp": r["competition"],
+                 "sai": ("%.1f" % r["season"]) if r["season"] else "-",
+                 "serp": "ja" if r["hat_serp"] else ""}
+                for r in d["keywords"][:args.top]]
+        print(table(rows, [("kw", "KEYWORD", 40, "l"), ("t", "T", 1, "r"),
+                           ("vol", "VOL", 7, "r"), ("cpc", "CPC", 6, "r"),
+                           ("comp", "COMP", 4, "r"), ("sai", "SAI", 4, "r"),
+                           ("serp", "SERP", 4, "l")]))
+
+        l = d["landschaft"]
+        print()
+        print("%sWER HAELT DIE PLAETZE%s  (%d SERPs, %d Treffer)"
+              % (BOLD, RST, l["serps"], l["treffer"]))
+        for k, v in sorted(l["anteile"].items(), key=lambda kv: -kv[1]):
+            print("  %-12s %3.0f%%  %s" % (k, 100 * v, "#" * int(round(28 * v))))
+        print()
+        print(table([{"d": x["domain"], "n": x["hits"], "k": x["kind"]}
+                     for x in l["top_domains"][:10]],
+                    [("d", "DOMAIN", 34, "l"), ("n", "SERPS", 5, "r"),
+                     ("k", "ART", 12, "l")]))
+
+        f = d["fragen"]
+        if f["related"]:
+            print()
+            print("%sVERWANDTE SUCHEN%s" % (BOLD, RST))
+            for q in f["related"][:12]:
+                print("  " + q)
+        if f["paa"]:
+            print()
+            print("%sWAS NUTZER FRAGEN%s" % (BOLD, RST))
+            for q in f["paa"][:10]:
+                print("  " + q)
+
+        print()
+        print(cost_report(run))
+        if args.json:
+            open(args.json, "w", encoding="utf-8").write(
+                json.dumps(d, ensure_ascii=False, indent=2))
+            print("  -> %s" % args.json)
+    return 0
+
+
 def cmd_rescore(args):
     """Urteile aus gespeicherten Rohsignalen neu ableiten. Kein Abruf, 0 $."""
     import json as _json
@@ -559,6 +649,17 @@ def main(argv=None):
                                       "marketplace", "aggregator"))
     q.add_argument("--note")
     q.set_defaults(fn=cmd_queue)
+
+    dv = sub.add_parser("dive", help="Tiefenanalyse eines Gebiets")
+    dv.add_argument("keyword")
+    dv.add_argument("--scope", choices=("schnell", "standard", "tief"),
+                    default="schnell")
+    dv.add_argument("--go", action="store_true", help="wirklich abrufen")
+    dv.add_argument("--budget", type=float, default=Config.run_budget_usd)
+    dv.add_argument("--max-serps", type=int, default=25)
+    dv.add_argument("--top", type=int, default=20)
+    dv.add_argument("--json")
+    dv.set_defaults(fn=cmd_dive)
 
     rs = sub.add_parser("rescore", help="Urteile aus Rohsignalen neu ableiten")
     rs.add_argument("--dry-run", action="store_true")

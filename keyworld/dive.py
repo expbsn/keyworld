@@ -1,0 +1,217 @@
+"""Tiefenanalyse eines einzelnen Themengebiets.
+
+Die Shortlist beantwortet 'welches Gebiet lohnt einen Blick'. Der Dive
+beantwortet 'wie sieht dieses Gebiet wirklich aus' -- Saisonkurve, das
+ganze Keyword-Umfeld, wer die SERPs haelt, und ob ueberhaupt jemand Geld
+in die Hand nimmt.
+
+Drei Umfaenge, weil Daten Geld kosten:
+
+    schnell   nur was schon bezahlt ist                      0 $
+    standard  + echtes Keyword-Umfeld von DataForSEO    ~0,12 $
+    tief      + fehlende SERPs des Umfelds              ~0,20 $
+"""
+import json
+import re
+from collections import Counter
+
+from .classify import CONFIDENCE_FLOOR
+from .config import Config
+from .intent import classify as classify_intent
+from .providers.base import KeywordMetrics
+
+SCOPES = ("schnell", "standard", "tief")
+TIEF_MAX_SERPS = 25          # Deckel, damit ein Dive nie entgleist
+
+# Referenzwerte aus den bisherigen Laeufen, um einen CPC einordnen zu koennen
+CPC_REFERENZ = [
+    ("Informationssuche, kein Markt", 0.50),
+    ("schwach monetarisiert", 1.50),
+    ("Verbrauchermarkt", 3.00),
+    ("kleiner B2B-Markt", 8.00),
+    ("harter B2B-Markt", 99.0),
+]
+
+
+def stem(keyword):
+    """Das erste Wort als Naeherung fuer das Gebiet."""
+    parts = re.split(r"\s+", keyword.strip().lower())
+    return parts[0] if parts else keyword.strip().lower()
+
+
+def _metrics_from_cache(conn, needle):
+    out = []
+    for r in conn.execute("SELECT keyword, payload FROM kw_cache"
+                          " WHERE source='dataforseo' AND keyword LIKE ?",
+                          ("%" + needle + "%",)):
+        try:
+            d = json.loads(r["payload"])
+        except ValueError:
+            continue
+        if isinstance(d, dict) and "search_volume" in d:
+            out.append(KeywordMetrics(**dict(
+                (k, v) for k, v in d.items()
+                if k in KeywordMetrics.__dataclass_fields__)))
+    return out
+
+
+def _serps_from_cache(conn, keywords):
+    want = set(keywords)
+    out = {}
+    for r in conn.execute("SELECT keyword, payload FROM kw_cache"
+                          " WHERE source='dataforseo:serp'"):
+        if r["keyword"] in want:
+            try:
+                out[r["keyword"]] = json.loads(r["payload"])
+            except ValueError:
+                pass
+    return out
+
+
+def _pages_from_cache(conn):
+    out = {}
+    for r in conn.execute("SELECT keyword, payload FROM kw_cache WHERE source='page'"):
+        try:
+            out[r["keyword"]] = json.loads(r["payload"])
+        except ValueError:
+            pass
+    return out
+
+
+def season_curve(metrics):
+    """Monatsreihe des volumenstaerksten Keywords mit Historie."""
+    best = None
+    for m in metrics:
+        if len(m.monthly) >= 12 and (best is None or
+                                     (m.search_volume or 0) > (best.search_volume or 0)):
+            best = m
+    if not best:
+        return None
+    vals = [(x.get("year"), x.get("month"), x.get("search_volume") or 0)
+            for x in best.monthly]
+    peak = max(v for _y, _mo, v in vals) or 1
+    tief = min(v for _y, _mo, v in vals)
+    return {"keyword": best.keyword, "months": vals, "peak": peak, "trough": tief,
+            "ratio": round(peak / max(1, tief), 1),
+            "peak_month": max(vals, key=lambda t: t[2])[1],
+            "avg": best.search_volume}
+
+
+def monetarisierung(metrics):
+    """Wie viel Geld steckt im Markt -- gewichtet nach Volumen."""
+    paare = [(m.cpc or 0.0, m.search_volume or 0) for m in metrics if m.search_volume]
+    if not paare:
+        return None
+    vol = sum(v for _c, v in paare)
+    gewichtet = sum(c * v for c, v in paare) / max(1, vol)
+    hoechster = max(paare, key=lambda t: t[0])
+    comps = [m.competition_index for m in metrics if m.competition_index is not None]
+    urteil = next(name for name, grenze in CPC_REFERENZ if gewichtet < grenze)
+    return {"cpc_gewichtet": round(gewichtet, 2),
+            "cpc_max": round(hoechster[0], 2),
+            "volumen_gesamt": vol,
+            "competition_median": sorted(comps)[len(comps) // 2] if comps else None,
+            "urteil": urteil}
+
+
+def serp_landschaft(serps, pages):
+    """Wer haelt die Plaetze im gesamten Umfeld, und welcher Art sind sie."""
+    kinds, domains, dom_kind = Counter(), Counter(), {}
+    for s in serps.values():
+        for o in s.get("organics") or []:
+            v = pages.get(o.get("url")) or {}
+            kind = v.get("kind", "unknown")
+            if v.get("confidence", 0) < CONFIDENCE_FLOOR:
+                kind = "unknown"
+            kinds[kind] += 1
+            domains[o["domain"]] += 1
+            dom_kind.setdefault(o["domain"], kind)
+    gesamt = sum(kinds.values()) or 1
+    return {"kinds": dict(kinds),
+            "anteile": dict((k, round(v / gesamt, 2)) for k, v in kinds.items()),
+            "top_domains": [{"domain": d, "hits": n, "kind": dom_kind.get(d, "unknown")}
+                            for d, n in domains.most_common(15)],
+            "serps": len(serps), "treffer": gesamt}
+
+
+def fragen(serps, limit=25):
+    paa, related = [], []
+    for s in serps.values():
+        paa += s.get("paa") or []
+        related += s.get("related") or []
+    return {"paa": list(dict.fromkeys(paa))[:limit],
+            "related": list(dict.fromkeys(related))[:limit]}
+
+
+def estimate(scope, n_missing_serps, dfs):
+    """Kosten VOR dem Abruf. Gibt (usd, beschreibung) zurueck."""
+    if scope == "schnell":
+        return 0.0, "nur bereits bezahlte Daten"
+    ideen, _ = dfs.estimate_search_volume_cost(1)       # keywords_for_keywords
+    volumen, _ = dfs.estimate_search_volume_cost(1000)  # ein Task deckt alles
+    if scope == "standard":
+        return round(ideen + volumen, 4), "Keyword-Umfeld und Volumen"
+    serps = dfs.estimate_serp_cost(min(n_missing_serps, TIEF_MAX_SERPS))
+    return round(ideen + volumen + serps, 4), "Umfeld, Volumen und %d SERPs" % min(
+        n_missing_serps, TIEF_MAX_SERPS)
+
+
+def run_dive(keyword, run, dfs, scope="schnell", max_serps=TIEF_MAX_SERPS):
+    """Fuehrt den Dive aus. Kauft nur, was der Umfang erlaubt."""
+    if scope not in SCOPES:
+        raise ValueError("Umfang muss einer von %s sein" % (SCOPES,))
+    conn = run.conn
+    subject = stem(keyword)
+    gekauft = []
+
+    if scope in ("standard", "tief"):
+        seeds = [keyword, subject]
+        ideen = dfs.keyword_ideas(list(dict.fromkeys(seeds)), run, limit=1000, layer="DIVE")
+        gekauft.append("%d Keyword-Ideen" % len(ideen))
+        neue = [m.keyword for m in ideen if subject in m.keyword]
+        if neue:
+            dfs.search_volume(neue[:1000], run, layer="DIVE")
+            gekauft.append("Volumen fuer %d" % len(neue[:1000]))
+
+    metrics = _metrics_from_cache(conn, subject)
+    metrics.sort(key=lambda m: -(m.search_volume or 0))
+    serps = _serps_from_cache(conn, [m.keyword for m in metrics])
+
+    if scope == "tief":
+        fehlend = [m.keyword for m in metrics
+                   if m.keyword not in serps and (m.search_volume or 0) >= 100]
+        fehlend = fehlend[:max_serps]
+        if fehlend:
+            neu = dfs.serp_batch(fehlend, run, layer="DIVE")
+            from .serp import parse_serp  # noqa: F401  (serp_batch parst bereits)
+            serps.update(neu)
+            gekauft.append("%d SERPs" % len(neu))
+            targets, seen = [], set()
+            for s in neu.values():
+                for o in s.get("organics") or []:
+                    if o.get("url") and o["url"] not in seen:
+                        seen.add(o["url"])
+                        targets.append({"domain": o["domain"], "url": o["url"]})
+            if targets:
+                from .cli import _classify_cached
+                from .classify import load_overrides
+                _classify_cached(targets, load_overrides(), run, 10)
+                gekauft.append("%d Seiten eingestuft" % len(targets))
+
+    pages = _pages_from_cache(conn)
+    reihen = []
+    for m in metrics:
+        lvl, name, _p = classify_intent(m.keyword)
+        reihen.append({"keyword": m.keyword, "volume": m.search_volume, "cpc": m.cpc,
+                       "competition": m.competition_index, "tier": lvl,
+                       "tier_name": name, "trend": m.trend_ratio(),
+                       "season": m.seasonality(), "hat_serp": m.keyword in serps})
+
+    return {"keyword": keyword, "subject": subject, "scope": scope,
+            "market": Config.market(), "gekauft": gekauft,
+            "keywords": reihen,
+            "season": season_curve(metrics),
+            "geld": monetarisierung(metrics),
+            "landschaft": serp_landschaft(serps, pages),
+            "fragen": fragen(serps),
+            "kosten": round(run.total_cost(), 4)}

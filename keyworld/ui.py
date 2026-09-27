@@ -15,13 +15,13 @@ import urllib.error
 import urllib.request
 import webbrowser
 from collections import Counter
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from .classify import CONFIDENCE_FLOOR, KINDS, add_override, load_overrides
 from .config import Config
-from .store import (all_runs, connect, keyword_rows, lifetime_cost,
+from .store import (Run, all_runs, connect, keyword_rows, lifetime_cost,
                     set_keyword_state, state_counts)
 
 STATIC = Path(__file__).parent / "static"
@@ -108,6 +108,72 @@ def _suffixes(domain):
     return [".".join(parts[i:]) for i in range(len(parts))]
 
 
+def _missing_serps(keyword):
+    """Wie viele Keywords des Umfelds noch keine SERP haben."""
+    from .dive import stem
+    conn = connect()
+    subject = stem(keyword)
+    haben = set(r["keyword"] for r in conn.execute(
+        "SELECT keyword FROM kw_cache WHERE source='dataforseo:serp'"))
+    n = 0
+    for r in conn.execute("SELECT keyword, payload FROM kw_cache"
+                          " WHERE source='dataforseo' AND keyword LIKE ?",
+                          ("%" + subject + "%",)):
+        if r["keyword"] in haben:
+            continue
+        try:
+            d = json.loads(r["payload"])
+        except ValueError:
+            continue
+        if isinstance(d, dict) and (d.get("search_volume") or 0) >= 100:
+            n += 1
+    return n
+
+
+class _Tarif:
+    """Nur die Preisformeln, ohne Netz -- damit die Schaetzung auch ohne
+    Credentials funktioniert und nie versehentlich etwas abruft."""
+    name = "dataforseo"
+    live = False
+
+    def estimate_search_volume_cost(self, n):
+        import math
+        return max(1, math.ceil(n / 1000)) * 0.06, 1
+
+    def estimate_serp_cost(self, n):
+        return n * 0.0006
+
+
+def dive_estimate(keyword, scope):
+    """Kosten VOR dem Klick."""
+    from .dive import TIEF_MAX_SERPS, estimate as _est
+    fehlend = _missing_serps(keyword)
+    usd, was = _est(scope, fehlend, _Tarif())
+    return {"scope": scope, "usd": usd, "was": was,
+            "fehlende_serps": min(fehlend, TIEF_MAX_SERPS)}
+
+
+def run_dive_for_ui(keyword, scope):
+    """Das Budget ist die gezeigte Schaetzung plus Reserve -- mehr als
+    angekuendigt kann ueber das Interface nie ausgegeben werden."""
+    from .dive import run_dive
+    from .providers import DataForSEO
+    if not Config.has_dataforseo():
+        return {"error": "Keine DataForSEO-Credentials"}
+    est = dive_estimate(keyword, scope)
+    budget = round(est["usd"] * 1.5 + 0.01, 4)
+    with Run(seed="dive:%s" % keyword, budget_usd=budget) as run:
+        try:
+            d = run_dive(keyword, run, DataForSEO(live=False), scope)
+        except Exception as e:                            # noqa: BLE001
+            return {"error": "%s: %s" % (type(e).__name__, e),
+                    "ausgegeben": round(run.total_cost(), 4)}
+        d["budget"] = budget
+        d["ausgegeben"] = round(run.total_cost(), 4)
+        d["geschaetzt"] = est["usd"]
+        return d
+
+
 def costs():
     spent, saved, calls = lifetime_cost()
     return {"spent": round(spent, 4), "saved": round(saved, 4), "calls": calls,
@@ -129,7 +195,23 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _guard(self, fn):
+        """Ein Fehler im Handler soll eine lesbare Antwort geben, keinen
+        abgebrochenen Socket -- sonst sieht das Interface nur Stille."""
+        try:
+            return fn()
+        except Exception as e:                            # noqa: BLE001
+            import traceback
+            traceback.print_exc()
+            return self._send(500, {"error": "%s: %s" % (type(e).__name__, e)})
+
     def do_GET(self):
+        return self._guard(self._get)
+
+    def do_POST(self):
+        return self._guard(self._post)
+
+    def _get(self):
         u = urlparse(self.path)
         qs = dict((k, v[0]) for k, v in parse_qs(u.query).items())
         market = Config.market()
@@ -148,11 +230,15 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"rows": pending_domains(market),
                                     "kinds": [k for k in KINDS if k != "unknown"],
                                     "overrides": len(load_overrides())})
+        if u.path == "/api/dive/estimate":
+            kw = qs.get("keyword") or ""
+            return self._send(200, dict(
+                (sc, dive_estimate(kw, sc)) for sc in ("schnell", "standard", "tief")))
         if u.path == "/api/costs":
             return self._send(200, costs())
         return self._send(404, {"error": "not found"})
 
-    def do_POST(self):
+    def _post(self):
         u = urlparse(self.path)
         length = int(self.headers.get("Content-Length") or 0)
         try:
@@ -167,6 +253,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, {"error": "unbekannter Zustand"})
             ok = set_keyword_state(kw, Config.market(), state, body.get("note"))
             return self._send(200 if ok else 404, {"ok": ok})
+
+        if u.path == "/api/dive":
+            kw = (body.get("keyword") or "").strip().lower()
+            scope = body.get("scope") or "schnell"
+            if not kw:
+                return self._send(400, {"error": "keyword noetig"})
+            if scope not in ("schnell", "standard", "tief"):
+                return self._send(400, {"error": "unbekannter Umfang"})
+            return self._send(200, run_dive_for_ui(kw, scope))
 
         if u.path == "/api/override":
             dom = (body.get("domain") or "").strip().lower()
@@ -194,7 +289,7 @@ def serve(port=8765, open_browser=True, tries=8):
     srv, bound = None, port
     for offset in range(tries):
         try:
-            srv = HTTPServer(("127.0.0.1", port + offset), Handler)
+            srv = ThreadingHTTPServer(("127.0.0.1", port + offset), Handler)
             bound = port + offset
             break
         except OSError as e:

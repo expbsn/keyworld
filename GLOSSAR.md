@@ -227,6 +227,34 @@ kostenlos ein.
 
 ---
 
+## Tiefenanalyse
+
+**Umfang** — Wie viel der Dive einkauft. `schnell` nutzt nur bezahlte
+Daten (0 $), `standard` holt das echte Keyword-Umfeld (0,12 $), `tief`
+zusaetzlich die fehlenden SERPs (0,14 $).
+
+**CPC volumengewichtet** — Der CPC des Feldes, gewichtet nach Suchvolumen.
+Ein Keyword mit 20 EUR und 10 Suchen darf einen Markt nicht schoenrechnen,
+in dem 10.000 Suchen bei 0,30 EUR liegen. Das ist die Zahl, die sagt, ob
+im Feld ueberhaupt Geld liegt.
+
+**Einordnung** — Ab welchem gewichteten CPC ein Markt was ist:
+
+    unter 0,50 EUR   Informationssuche, kein Markt
+    unter 1,50 EUR   schwach monetarisiert
+    unter 3,00 EUR   Verbrauchermarkt
+    unter 8,00 EUR   kleiner B2B-Markt
+    darueber         harter B2B-Markt
+
+**Verhaeltnis** (Saison) — Spitze zu Tal ueber 12 Monate. 7,5x heisst, der
+staerkste Monat hat das 7,5-fache des schwaechsten.
+
+**Wer die Plaetze haelt** — Die Kategorien aller Treffer im ganzen Feld,
+nicht nur einer SERP. Zeigt auf einen Blick, ob dort Produkte, Ratgeber
+oder Gratis-Vorlagen sitzen.
+
+---
+
 ## Kommandos
 
 | Kommando | Zweck | Kosten |
@@ -237,9 +265,11 @@ kostenlos ein.
 | `scout` | Der eigentliche Lauf | ab 0,06 $ |
 | `review` | Zustand und Notiz je Keyword | 0 |
 | `queue` | Overrides anzeigen und ergaenzen | 0 |
+| `dive` | Tiefenanalyse eines Gebiets | 0 bis 0,14 $ |
 | `rescore` | Urteile aus Rohsignalen neu ableiten | 0 |
 | `serve` | Interface im Browser | 0 |
 | `costs` | Ausgabenuebersicht | 0 |
 | `fetch` | Bezahlte Queue-Tasks einsammeln | 0 |
 
-Nur `scout --go` gibt Geld aus. Alles andere ist kostenlos.
+Geld geben nur `scout --go` und `dive --go` aus. Alles andere ist
+kostenlos.

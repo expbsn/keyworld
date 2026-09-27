@@ -8,7 +8,7 @@ import re
 import unittest
 from pathlib import Path
 
-from keyworld import render
+from keyworld import dive, render
 from keyworld.cli import main
 from keyworld.classify import (_in_group, _suffixes, is_stale, looks_like_file,
                                rescore, signals_for, verdict_from_scores)
@@ -207,6 +207,46 @@ class Verdichtung(unittest.TestCase):
         self.assertEqual(best_of(rows)["keyword"], "b")
 
 
+class Dive(unittest.TestCase):
+    def test_stamm(self):
+        self.assertEqual(dive.stem("stundenplan app"), "stundenplan")
+        self.assertEqual(dive.stem("  Rechnung schreiben "), "rechnung")
+
+    def test_monetarisierung_gewichtet_nach_volumen(self):
+        """Ein teures Keyword mit 10 Suchen darf den Markt nicht schoenrechnen."""
+        m = [km("viel billig", vol=10000, cpc=0.30),
+             km("wenig teuer", vol=10, cpc=20.0)]
+        g = dive.monetarisierung(m)
+        # 10000*0,30 + 10*20 = 3200 / 10010 = 0,32 -- das teure Keyword
+        # verschiebt das Urteil nicht, obwohl sein CPC 60x hoeher liegt
+        self.assertEqual(g["cpc_gewichtet"], 0.32)
+        self.assertEqual(g["cpc_max"], 20.0)
+        self.assertEqual(g["urteil"], "Informationssuche, kein Markt")
+
+    def test_urteil_skaliert(self):
+        self.assertEqual(dive.monetarisierung([km("a", cpc=0.20)])["urteil"],
+                         "Informationssuche, kein Markt")
+        self.assertEqual(dive.monetarisierung([km("a", cpc=12.0)])["urteil"],
+                         "harter B2B-Markt")
+
+    def test_saisonkurve(self):
+        vols = [1300, 720, 320, 210, 320, 320, 390, 320, 210, 210, 210, 590]
+        m = km("x", monthly=[{"year": 2026, "month": i + 1, "search_volume": v}
+                             for i, v in enumerate(vols)])
+        s = dive.season_curve([m])
+        self.assertEqual(s["peak"], 1300)
+        self.assertEqual(s["trough"], 210)
+        self.assertEqual(s["ratio"], 6.2)
+
+    def test_schnell_kostet_nichts(self):
+        class T:
+            def estimate_search_volume_cost(self, n): return 0.06, 1
+            def estimate_serp_cost(self, n): return n * 0.0006
+        self.assertEqual(dive.estimate("schnell", 25, T())[0], 0.0)
+        self.assertGreater(dive.estimate("tief", 25, T())[0],
+                           dive.estimate("standard", 25, T())[0])
+
+
 class Rendern(unittest.TestCase):
     """Zellen mit Farbcodes.
 
@@ -276,7 +316,7 @@ class Doku(unittest.TestCase):
     stand trotzdem noch in der Anleitung."""
 
     COMMANDS = ("scout", "gen", "review", "queue", "costs", "serve",
-                "discover", "rescore", "fetch", "probe")
+                "discover", "rescore", "fetch", "probe", "dive")
     FLAG = re.compile(r"(?<![\w-])--[a-z][a-z-]{2,}")
 
     def _known_flags(self):

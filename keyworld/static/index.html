@@ -61,6 +61,21 @@ gap:8px;margin-bottom:12px}
 .kpi span{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.06em}
 .hint{color:var(--dim);font-size:11px;margin-top:10px}
 .wrap{overflow-x:auto}
+.dive{margin-top:10px;border-top:1px solid var(--line);padding-top:9px}
+.scopes{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.scope{background:var(--card);border:1px solid var(--line);color:var(--fg);
+padding:4px 11px;border-radius:4px;font:inherit;cursor:pointer;text-align:left}
+.scope:hover{border-color:var(--acc)}
+.scope b{display:block;font-weight:600}
+.scope span{color:var(--dim);font-size:10px}
+.scope.free b{color:var(--acc)}
+.curve{display:flex;gap:2px;align-items:flex-end;height:46px;margin:6px 0}
+.curve i{flex:1;background:var(--acc);border-radius:1px 1px 0 0;min-height:1px}
+.curve i.peak{background:var(--warn)}
+.mon{display:flex;gap:2px;color:var(--dim);font-size:9px}
+.mon span{flex:1;text-align:center}
+.verdikt{border-left:3px solid var(--warn);padding-left:9px;margin:8px 0}
+.busy{color:var(--dim)}
 kbd{border:1px solid var(--line);border-radius:3px;padding:0 4px;font-size:10px}
 @media(max-width:700px){th:nth-child(n+8),td:nth-child(n+8){display:none}}
 </style>
@@ -158,10 +173,103 @@ function detail(){
       <button class="act" data-s="rejected">rejected</button>
       <input id="note" placeholder="Notiz" value="${esc(r.note||"")}" style="flex:1;min-width:200px">
       <button class="act" id="savenote">Notiz sichern</button>
-    </div></div>`;
+    </div>
+    <div class="dive" id="dive"><div class="scopes"><span class="dim">Tiefenanalyse laedt&hellip;</span></div></div>
+    </div>`;
   $("#det").querySelectorAll("button[data-s]").forEach(b =>
     b.onclick = () => setState(r.keyword, b.dataset.s));
   $("#savenote").onclick = () => setState(r.keyword, null, $("#note").value);
+  loadScopes(r.keyword);
+}
+
+const SCOPE_TEXT = {
+  schnell:  "nur bereits bezahlte Daten",
+  standard: "echtes Keyword-Umfeld von DataForSEO",
+  tief:     "zusaetzlich die fehlenden SERPs"
+};
+
+async function loadScopes(keyword){
+  const box = $("#dive"); if (!box) return;
+  const est = await api("/api/dive/estimate?keyword=" + encodeURIComponent(keyword));
+  box.innerHTML = `<div class="scopes"><span class="dim">Tiefenanalyse:</span>` +
+    ["schnell","standard","tief"].map(sc => {
+      const e = est[sc] || {usd:0};
+      return `<button class="scope ${e.usd?"":"free"}" data-sc="${sc}">
+        <b>${sc} &middot; ${e.usd ? "$"+e.usd.toFixed(4) : "gratis"}</b>
+        <span>${SCOPE_TEXT[sc]}</span></button>`;
+    }).join("") + `</div><div id="diveout"></div>`;
+  box.querySelectorAll("button[data-sc]").forEach(b => b.onclick = () => dive(keyword, b.dataset.sc));
+}
+
+async function dive(keyword, scope){
+  const out = $("#diveout");
+  out.innerHTML = `<p class="busy">Analysiere &bdquo;${esc(keyword)}&ldquo; (${scope})&hellip;
+    ${scope==="schnell"?"":"Abruf laeuft, das dauert einen Moment."}</p>`;
+  const d = await api("/api/dive", {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({keyword, scope})});
+  if (d.error){ out.innerHTML = `<p class="busy">Fehler: ${esc(d.error)}</p>`; return; }
+  renderDive(out, d);
+}
+
+function renderDive(out, d){
+  const s = d.season, g = d.geld, l = d.landschaft;
+  const MON = ["","Jan","Feb","Mrz","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
+  let h = "";
+
+  if (d.ausgegeben != null)
+    h += `<p class="dim">Umfang ${esc(d.scope)} &middot; ausgegeben $${d.ausgegeben.toFixed(4)}
+      von $${(d.budget||0).toFixed(4)} Limit${d.gekauft && d.gekauft.length ?
+      " &middot; " + esc(d.gekauft.join(", ")) : ""}</p>`;
+
+  if (g) h += `<div class="verdikt"><b>${esc(g.urteil)}</b><br>
+    <span class="dim">CPC volumengewichtet ${g.cpc_gewichtet.toFixed(2)} &euro; &middot;
+    hoechster ${g.cpc_max.toFixed(2)} &euro; &middot; Wettbewerb ${g.competition_median}/100
+    &middot; ${g.volumen_gesamt.toLocaleString("de")} Suchen/Monat</span></div>`;
+
+  if (s){
+    h += `<p class="dim">Saison &bdquo;${esc(s.keyword)}&ldquo;: Spitze ${s.peak.toLocaleString("de")}
+      im ${MON[s.peak_month]}, Tal ${s.trough.toLocaleString("de")}, ${s.ratio}x</p>
+      <div class="curve">` +
+      s.months.map(m => `<i class="${m[2]===s.peak?"peak":""}"
+        style="height:${Math.max(2,100*m[2]/s.peak)}%" title="${MON[m[1]]} ${m[0]}: ${m[2]}"></i>`).join("") +
+      `</div><div class="mon">` + s.months.map(m=>`<span>${MON[m[1]]}</span>`).join("") + `</div>`;
+  }
+
+  if (l && l.treffer){
+    h += `<p class="dim">Wer die Plaetze haelt (${l.serps} SERPs, ${l.treffer} Treffer)</p>
+      <div class="wrap"><table><thead><tr><th>Art</th><th class="n">Anteil</th>
+      <th>Domains</th></tr></thead><tbody>` +
+      Object.entries(l.anteile).sort((a,b)=>b[1]-a[1]).map(([k,v]) => {
+        const doms = l.top_domains.filter(x=>x.kind===k).slice(0,3).map(x=>x.domain).join(", ");
+        return `<tr><td>${esc(k)}</td><td class="n">${Math.round(100*v)}%</td>
+          <td class="dim">${esc(doms)}</td></tr>`;
+      }).join("") + `</tbody></table></div>`;
+  }
+
+  const kw = (d.keywords||[]).slice(0,12);
+  if (kw.length){
+    h += `<p class="dim">Keyword-Umfeld (${(d.keywords||[]).length} gesamt)</p>
+      <div class="wrap"><table><thead><tr><th>Keyword</th><th class="n">St</th>
+      <th class="n">Vol</th><th class="n">CPC</th><th class="n">Comp</th>
+      <th class="n">Saison</th></tr></thead><tbody>` +
+      kw.map(r=>`<tr><td>${esc(r.keyword)}</td>
+        <td class="n"><span class="t t${r.tier}">${r.tier}</span></td>
+        <td class="n">${r.volume ?? "-"}</td>
+        <td class="n">${r.cpc==null?"-":r.cpc.toFixed(2)}</td>
+        <td class="n dim">${r.competition ?? "-"}</td>
+        <td class="n dim">${r.season==null?"-":r.season.toFixed(1)}</td></tr>`).join("") +
+      `</tbody></table></div>`;
+  }
+
+  const f = d.fragen || {};
+  if ((f.related||[]).length)
+    h += `<p class="dim">Verwandte Suchen</p><p class="tags">` +
+      f.related.slice(0,14).map(q=>`<span class="tag">${esc(q)}</span>`).join(" ") + `</p>`;
+  if ((f.paa||[]).length)
+    h += `<p class="dim">Was Nutzer fragen</p><p class="tags">` +
+      f.paa.slice(0,10).map(q=>`<span class="tag">${esc(q)}</span>`).join(" ") + `</p>`;
+
+  out.innerHTML = h;
 }
 
 async function setState(keyword, state, note){

@@ -164,6 +164,34 @@ naeher beieinander liegen, sind nicht unterscheidbar -- und wo die
 Unschaerfe den Wert uebersteigt (`8±10`), bedeutet die Rangposition
 nichts. Das gehoert in die Ausgabe, nicht in eine Fussnote.
 
+## Tiefenanalyse
+
+Die Shortlist beantwortet "welches Gebiet lohnt einen Blick". Der Dive
+beantwortet "wie sieht dieses Gebiet wirklich aus".
+
+    ./keyworld.sh dive "stundenplan app"                      # gratis
+    ./keyworld.sh dive "stundenplan app" --scope standard --go
+    ./keyworld.sh dive "stundenplan app" --scope tief --go
+
+Drei Umfaenge, weil Daten Geld kosten:
+
+    schnell   nur was schon bezahlt ist                      0 $
+    standard  + das echte Keyword-Umfeld von DataForSEO    0,12 $
+    tief      + die fehlenden SERPs des Umfelds            0,14 $
+
+Der Dive zeigt die Saisonkurve ueber 12 Monate, das gesamte Keyword-Umfeld,
+wer die Plaetze im Feld haelt, die verwandten Suchen und Nutzerfragen --
+und eine Einordnung, wie viel Geld ueberhaupt im Markt steckt.
+
+**Monetarisierung** ist volumengewichtet, nicht der Durchschnitt: ein
+Keyword mit 20 EUR CPC und 10 Suchen darf einen Markt nicht schoenrechnen,
+in dem 10.000 Suchen bei 0,30 EUR liegen.
+
+Im Interface steht die Tiefenanalyse unter jeder Zeile der Shortlist. Die
+drei Umfaenge zeigen ihren Preis VOR dem Klick, und das Limit des Laufs ist
+die gezeigte Schaetzung plus Reserve -- ueber das Interface kann nie mehr
+ausgegeben werden als angekuendigt.
+
 ## Neu bewerten ohne Abruf
 
 Jedes Seitenurteil speichert seine Rohsignale mit. Eine geaenderte
