@@ -8,6 +8,7 @@ import re
 import unittest
 from pathlib import Path
 
+from keyworld import render
 from keyworld.cli import main
 from keyworld.classify import (_in_group, _suffixes, is_stale, looks_like_file,
                                rescore, signals_for, verdict_from_scores)
@@ -204,6 +205,45 @@ class Verdichtung(unittest.TestCase):
         rows = [{"keyword": "a", "cpc": 1.0, "serp": {"difficulty": 5}},
                 {"keyword": "b", "cpc": 1.0, "serp": {"difficulty": None}}]
         self.assertEqual(best_of(rows)["keyword"], "b")
+
+
+class Rendern(unittest.TestCase):
+    """Zellen mit Farbcodes.
+
+    Diese Tests erzwingen Farben. In der Pipe ist isatty() falsch, die
+    Codes sind leer und der Fehler existiert nicht -- er trat nur im echten
+    Terminal auf: naives s[:w] zerschnitt eine Escape-Sequenz, das Terminal
+    frass das erste Zeichen der naechsten Spalte ('#####ROD' statt 'PROD').
+    """
+
+    def setUp(self):
+        self._alt = (render.DIM, render.BOLD, render.RST)
+        render.DIM, render.BOLD, render.RST = "\033[2m", "\033[1m", "\033[0m"
+
+    def tearDown(self):
+        render.DIM, render.BOLD, render.RST = self._alt
+
+    def test_sichtbare_laenge_ignoriert_farbcodes(self):
+        self.assertEqual(render.vis_len("\033[2mabc\033[0m"), 3)
+
+    def test_kuerzen_zerschneidet_keine_sequenz(self):
+        gekuerzt = render.fit(render.bar(66, 100, 8), 8)
+        self.assertEqual(render.vis_len(gekuerzt), 8)
+        self.assertNotRegex(gekuerzt, r"\033\[[0-9;]*$")   # kein Fragment am Ende
+
+    def test_spalten_bleiben_ausgerichtet(self):
+        rows = [{"a": "x", "b": render.bar(v, 100, 8), "c": "PROD"}
+                for v in (5, 45, 95)]
+        cols = [("a", "A", 4, "l"), ("b", "", 8, "l"), ("c", "C", 5, "l")]
+        zeilen = render.table(rows, cols, 40).splitlines()
+        breiten = set(render.vis_len(z) for z in zeilen)
+        self.assertEqual(len(breiten), 1, "Zeilen unterschiedlich breit: %s" % breiten)
+
+    def test_inhalt_bleibt_lesbar(self):
+        rows = [{"b": render.bar(66, 100, 8), "c": "PROD"}]
+        cols = [("b", "", 8, "l"), ("c", "SERP", 4, "l")]
+        klartext = re.sub(r"\033\[[0-9;]*m", "", render.table(rows, cols, 30))
+        self.assertIn("PROD", klartext)
 
 
 class Rescore(unittest.TestCase):

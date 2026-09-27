@@ -1,5 +1,6 @@
 """Mono-Rendering fuer das Terminal. Keine Abhaengigkeiten, kein Framework."""
 import os
+import re
 import sys
 
 W = 108
@@ -10,6 +11,39 @@ RST = "\033[0m" if _TTY else ""
 GRN = "\033[32m" if _TTY else ""
 YEL = "\033[33m" if _TTY else ""
 RED = "\033[31m" if _TTY else ""
+
+
+_ANSI = re.compile(r"\033\[[0-9;]*m")
+
+
+def vis_len(s):
+    """Sichtbare Laenge -- Farbcodes belegen keine Spalte."""
+    return len(_ANSI.sub("", s))
+
+
+def fit(s, width, align="l"):
+    """Auf SICHTBARE Breite kuerzen und fuellen.
+
+    Naiv nach len() zu schneiden zerlegt Escape-Sequenzen: das Terminal
+    frisst dann das erste Zeichen der naechsten Spalte. Hier wird
+    zeichenweise gezaehlt, Escapes uebersprungen und am Ende
+    zurueckgesetzt, falls mitten in einer Einfaerbung gekuerzt wurde.
+    """
+    out, seen, i, styled = [], 0, 0, False
+    while i < len(s) and seen < width:
+        m = _ANSI.match(s, i)
+        if m:
+            out.append(m.group(0))
+            styled = m.group(0) != RST
+            i = m.end()
+            continue
+        out.append(s[i])
+        seen += 1
+        i += 1
+    if styled and RST:
+        out.append(RST)
+    pad = " " * max(0, width - seen)
+    return ("".join(out) + pad) if align == "l" else (pad + "".join(out))
 
 
 def rule(char="-", width=W):
@@ -24,16 +58,14 @@ def table(rows, cols, width=W):
     """rows: List[dict], cols: List[(key, label, width, align)]"""
     if not rows:
         return DIM + "  (keine Daten)" + RST
-    head_line = "  ".join(
-        (lbl[:w].ljust(w) if a == "l" else lbl[:w].rjust(w)) for _, lbl, w, a in cols)
-    out = [BOLD + head_line + RST, rule("-", len(head_line))]
+    head_line = "  ".join(fit(lbl, w, a) for _, lbl, w, a in cols)
+    out = [BOLD + head_line + RST, rule("-", vis_len(head_line))]
     for r in rows:
         cells = []
         for key, _, w, a in cols:
             v = r.get(key)
             s = "?" if v is None else (("%.4f" % v) if isinstance(v, float) else str(v))
-            s = s[:w]
-            cells.append(s.ljust(w) if a == "l" else s.rjust(w))
+            cells.append(fit(s, w, a))
         out.append("  ".join(cells))
     return "\n".join(out)
 
