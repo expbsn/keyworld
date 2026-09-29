@@ -412,7 +412,9 @@ def cmd_dive(args):
 
     with Run(seed="dive:%s" % args.keyword, budget_usd=args.budget) as run:
         dfs = DataForSEO(live=False)
-        kosten, was = estimate(args.scope, args.max_serps, dfs)
+        from .ui import _ideen_gecacht
+        kosten, was = estimate(args.scope, args.max_serps, dfs,
+                               _ideen_gecacht(args.keyword))
         print(head("DIVE  %s  umfang=%s" % (args.keyword, args.scope)))
         print("  Geschaetzt: %s  (%s)" % (money(kosten), was))
         if not args.go and args.scope != "schnell":

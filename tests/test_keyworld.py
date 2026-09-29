@@ -261,6 +261,24 @@ class Entdoppeln(unittest.TestCase):
         self.assertEqual(g["keywords_entdoppelt"], 2)
 
 
+class Seitenzuordnung(unittest.TestCase):
+    """Der Cache schreibt Schluessel klein. Wer mit der Original-URL
+    nachschlaegt, verfehlt jede prozentkodierte Adresse -- App-Store- und
+    YouTube-Treffer galten dadurch als unbekannt und trieben den
+    unknown-Anteil auf 44 Prozent."""
+
+    def test_grossschreibung_in_der_url(self):
+        serp = {"organics": [{"rank": 1, "domain": "apps.apple.com",
+                              "url": "https://apps.apple.com/de/app/Fu%C3%9Fpflege/id1",
+                              "title": "t"}],
+                "related": [], "paa": [], "ads": 0}
+        pages = {"https://apps.apple.com/de/app/fu%c3%9fpflege/id1":
+                 {"kind": "marketplace", "confidence": 0.95}}
+        l = dive.serp_landschaft(serp and {"k": serp}, pages)
+        self.assertEqual(l["kinds"].get("marketplace"), 1)
+        self.assertNotIn("unknown", l["kinds"])
+
+
 class Vergleich(unittest.TestCase):
     def test_marken_werden_erkannt(self):
         import tempfile

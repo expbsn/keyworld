@@ -125,7 +125,7 @@ def _missing_serps(keyword):
             d = json.loads(r["payload"])
         except ValueError:
             continue
-        if isinstance(d, dict) and (d.get("search_volume") or 0) >= 100:
+        if isinstance(d, dict) and (d.get("search_volume") or 0) > 0:
             n += 1
     return n
 
@@ -144,11 +144,22 @@ class _Tarif:
         return n * 0.0006
 
 
+def _ideen_gecacht(keyword):
+    """Wurde das Keyword-Umfeld fuer dieses Gebiet schon gekauft?"""
+    from .dive import stem
+    key = "ideas|" + "|".join(sorted(dict.fromkeys([keyword.strip().lower(),
+                                                    stem(keyword)])))
+    row = connect().execute(
+        "SELECT 1 FROM kw_cache WHERE source='dataforseo' AND keyword=?",
+        (key,)).fetchone()
+    return row is not None
+
+
 def dive_estimate(keyword, scope):
     """Kosten VOR dem Klick."""
     from .dive import TIEF_MAX_SERPS, estimate as _est
     fehlend = _missing_serps(keyword)
-    usd, was = _est(scope, fehlend, _Tarif())
+    usd, was = _est(scope, fehlend, _Tarif(), _ideen_gecacht(keyword))
     return {"scope": scope, "usd": usd, "was": was,
             "fehlende_serps": min(fehlend, TIEF_MAX_SERPS)}
 

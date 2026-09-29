@@ -98,10 +98,13 @@ def _serps_from_cache(conn, keywords):
 
 
 def _pages_from_cache(conn):
+    """Schluessel sind kleingeschrieben -- der Cache normalisiert so. Wer mit
+    der Original-URL nachschlaegt, verfehlt jede prozentkodierte Adresse und
+    haelt sie faelschlich fuer unbekannt."""
     out = {}
     for r in conn.execute("SELECT keyword, payload FROM kw_cache WHERE source='page'"):
         try:
-            out[r["keyword"]] = json.loads(r["payload"])
+            out[r["keyword"].lower()] = json.loads(r["payload"])
         except ValueError:
             pass
     return out
@@ -154,7 +157,7 @@ def serp_landschaft(serps, pages):
     kinds, domains, dom_kind = Counter(), Counter(), {}
     for s in serps.values():
         for o in s.get("organics") or []:
-            v = pages.get(o.get("url")) or {}
+            v = pages.get((o.get("url") or "").lower()) or {}
             kind = v.get("kind", "unknown")
             if v.get("confidence", 0) < CONFIDENCE_FLOOR:
                 kind = "unknown"
@@ -243,12 +246,16 @@ def compare(subjects, conn, pages=None):
     return out
 
 
-def estimate(scope, n_missing_serps, dfs):
-    """Kosten VOR dem Abruf. Gibt (usd, beschreibung) zurueck."""
+def estimate(scope, n_missing_serps, dfs, ideen_gecacht=False):
+    """Kosten VOR dem Abruf. Gibt (usd, beschreibung) zurueck.
+
+    Gecachte Teile werden abgezogen -- sonst kuendigt der Dive Kosten an,
+    die gar nicht anfallen (gemessen: 0,1350 angekuendigt, 0,0036 bezahlt).
+    """
     if scope == "schnell":
         return 0.0, "nur bereits bezahlte Daten"
-    ideen, _ = dfs.estimate_search_volume_cost(1)       # keywords_for_keywords
-    volumen, _ = dfs.estimate_search_volume_cost(1000)  # ein Task deckt alles
+    ideen = 0.0 if ideen_gecacht else dfs.estimate_search_volume_cost(1)[0]
+    volumen = 0.0 if ideen_gecacht else dfs.estimate_search_volume_cost(1000)[0]
     if scope == "standard":
         return round(ideen + volumen, 4), "Keyword-Umfeld und Volumen"
     serps = dfs.estimate_serp_cost(min(n_missing_serps, TIEF_MAX_SERPS))
@@ -278,8 +285,12 @@ def run_dive(keyword, run, dfs, scope="schnell", max_serps=TIEF_MAX_SERPS):
     serps = _serps_from_cache(conn, [m.keyword for m in metrics])
 
     if scope == "tief":
+        # Kein fester Schwellwert: in einem kleinen B2B-Feld liegen die
+        # aufschlussreichsten Keywords unter jeder Schwelle, die in einem
+        # grossen Feld sinnvoll waere. Stattdessen schlicht die
+        # volumenstaerksten ohne SERP -- metrics ist bereits sortiert.
         fehlend = [m.keyword for m in metrics
-                   if m.keyword not in serps and (m.search_volume or 0) >= 100]
+                   if m.keyword not in serps and (m.search_volume or 0) > 0]
         fehlend = fehlend[:max_serps]
         if fehlend:
             neu = dfs.serp_batch(fehlend, run, layer="DIVE")
