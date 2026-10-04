@@ -45,6 +45,12 @@ LADDER = {
         r"\bfrist\b", r"\bfristen\b", r"\bvorschrift", r"\bverordnung",
         r"\bgesetz\b", r"\bdsgvo\b", r"\bgobd\b", r"\bnachweispflicht",
         r"\bmeldepflicht", r"\baufbewahrungs",
+        # Technische Normen und Regelwerke. Wer danach sucht, muss sich
+        # danach richten -- das ist Pflicht, auch ohne das Wort "Pflicht".
+        r"\bvob\b", r"\bdin \d", r"\bdin\b", r"\bhoai\b", r"\bvde\b",
+        r"\bdguv\b", r"\buvv\b", r"\bbgv\b", r"\bisо?\s?\d{4}",
+        r"\bnorm(gerecht|konform)?\b", r"\bregelwerk", r"\brichtlinie",
+        r"\bpruefbar", r"\bprüfbar", r"\brevisionssicher",
     ]),
     4: ("Orientierung", [
         r"\bbeste[rsn]?\b.*\bapp\b", r"\bbeste[rsn]?\b", r"\btop \d+",

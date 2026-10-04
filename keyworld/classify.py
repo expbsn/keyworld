@@ -42,7 +42,7 @@ FORUM_DOMAINS = {          # UGC und soziale Plattformen: nie eine Produktseite
     "reddit.com", "quora.com", "gutefrage.net", "wer-weiss-was.de",
     "stackoverflow.com", "stackexchange.com", "superuser.com", "serverfault.com",
     "discourse.org", "xing.com", "linkedin.com", "facebook.com",
-    "youtube.com", "youtu.be", "vimeo.com", "pinterest.com", "pinterest.de",
+    "youtube.com", "youtu.be", "vimeo.com",
     "instagram.com", "tiktok.com", "x.com", "twitter.com", "slideshare.net",
     "scribd.com", "issuu.com",
 }
@@ -52,6 +52,10 @@ MARKETPLACE_DOMAINS = {
     "temu.com", "apps.apple.com", "play.google.com", "microsoft.com",
     "cloud.microsoft", "office.com", "canva.com", "notion.so", "figma.com",
     "templates.office.com", "chrome.google.com", "addons.mozilla.org",
+    # Pinterest ist eine Vorlagen- und Inspirationsplattform, kein
+    # Diskussionsort. Als Forum gezaehlt liess es Gratisware-SERPs wie
+    # Luecken aussehen.
+    "pinterest.com", "pinterest.de", "pinterest.at", "pinterest.ch",
 }
 AGGREGATOR_DOMAINS = {
     "capterra.com", "capterra.com.de", "g2.com", "getapp.de", "getapp.com",
@@ -443,6 +447,19 @@ def classify_many(results, overrides=None, workers=8, fetch_page=True, cache=Non
                                  "lang": None, "published": None,
                                  "download": False, "source": "fehler"}
     return out
+
+
+def list_verdict(domain):
+    """Verdikt aus den Domainlisten, falls die Domain dort steht."""
+    dom = _norm(domain)
+    for group, kind in ((FORUM_DOMAINS, "forum"), (MARKETPLACE_DOMAINS, "marketplace"),
+                        (AGGREGATOR_DOMAINS, "aggregator"), (ARTICLE_DOMAINS, "article"),
+                        (INSTITUTION_DOMAINS, "institution")):
+        if _in_group(dom, group):
+            return {"kind": kind, "confidence": 0.95, "why": ["bekannte Domain"],
+                    "scores": {}, "lang": None, "published": None,
+                    "download": False, "source": "liste"}
+    return None
 
 
 def rescore(verdict):

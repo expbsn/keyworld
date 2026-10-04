@@ -84,6 +84,7 @@ kbd{border:1px solid var(--line);border-radius:3px;padding:0 4px;font-size:10px}
   <h1>KEYWORLD</h1><span class="dim" id="market"></span>
   <nav>
    <button data-tab="list" class="on">Shortlist</button>
+   <button data-tab="gaps">L&uuml;cken</button>
    <button data-tab="queue">Pr&uuml;fliste</button>
    <button data-tab="cost">Kosten</button>
   </nav>
@@ -281,6 +282,31 @@ async function setState(keyword, state, note){
   render();
 }
 
+async function loadGaps(){
+  const d = await api("/api/gaps");
+  const head = `<tr><th>Keyword</th><th class="n">St</th><th class="n">CPC</th>
+    <th class="n">Vol</th><th class="n">Comp</th><th class="n">Sicher</th>
+    <th>Wer antwortet</th><th>Top-Domains</th></tr>`;
+  const body = d.rows.map(r => `<tr>
+    <td>${esc(r.keyword)}</td>
+    <td class="n"><span class="t t${r.tier}">${r.tier}</span></td>
+    <td class="n">${r.cpc.toFixed(2)}</td>
+    <td class="n">${r.volume}</td>
+    <td class="n dim">${r.competition ?? "-"}</td>
+    <td class="n dim">${r.sure}/${r.total}</td>
+    <td class="dim">${Object.entries(r.antwortet).map(([k,v])=>v+k.slice(0,4)).join(" ")}</td>
+    <td class="dim">${esc(r.domains.slice(0,3).join(", "))}</td></tr>`).join("");
+  $("#view").innerHTML = `<div class="kpi">
+      <div><span>L&uuml;cken</span><b>${d.rows.length}</b></div>
+      <div><span>H&ouml;chster CPC</span><b>${d.rows.length?d.rows[0].cpc.toFixed(2):"-"} &euro;</b></div></div>
+    <p class="hint">Keywords mit konkreter Absicht (Stufe 1&ndash;3), auf deren
+     SERP keine einzige sichere Produktseite steht. Hoher CPC heisst: jemand
+     zahlt f&uuml;r diese Sucher, aber niemand verkauft ihnen etwas organisch.
+     Reine Vorlagen- und Marktplatz-SERPs sind ausgeschlossen &ndash; das ist
+     Gratisware, keine L&uuml;cke.</p>
+    <div class="wrap"><table>${head ? "<thead>"+head+"</thead>" : ""}<tbody>${body}</tbody></table></div>`;
+}
+
 async function loadQueue(){
   const d = await api("/api/queue");
   const head = `<tr><th>Domain</th><th class="n">SERPs</th><th>Signale</th><th>Einordnen</th></tr>`;
@@ -335,7 +361,7 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("nav button").forEach(x=>x.classList.remove("on"));
   b.classList.add("on"); tab = b.dataset.tab;
   $("#filters").style.display = tab === "list" ? "flex" : "none";
-  ({list:loadList, queue:loadQueue, cost:loadCost})[tab]();
+  ({list:loadList, gaps:loadGaps, queue:loadQueue, cost:loadCost})[tab]();
 });
 ["#f-state","#f-tier","#f-serp","#f-group"].forEach(s => $(s).onchange = loadList);
 $("#f-q").oninput = () => { clearTimeout(window._t); window._t = setTimeout(loadList, 200); };

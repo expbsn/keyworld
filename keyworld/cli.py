@@ -547,10 +547,45 @@ def cmd_compare(args):
     return 0
 
 
+def cmd_gaps(args):
+    """Die Umkehrung der PROD-Sicht: wo niemand verkauft. Kostet nichts."""
+    from .dive import gaps
+    from .store import connect
+
+    tiers = tuple(int(t) for t in args.tiers.split(",")) if args.tiers else (1, 2, 3)
+    erg = gaps(connect(), min_cpc=args.min_cpc, min_volume=args.min_volume,
+               tiers=tiers)
+    print(head("LUECKEN  stufen=%s  markt=%s"
+               % (",".join(str(t) for t in tiers), Config.market())))
+    print("  %sKeywords mit konkreter Absicht, auf deren SERP keine einzige"
+          " sichere Produktseite steht.%s" % (DIM, RST))
+    if not erg:
+        print("\n  Nichts gefunden. Mehr SERPs holen: scout oder dive --scope tief")
+        return 0
+    print()
+    print(table([{
+        "kw": r["keyword"], "t": r["tier"], "cpc": r["cpc"], "vol": r["volume"],
+        "comp": r["competition"], "s": "%d/%d" % (r["sure"], r["total"]),
+        "a": " ".join("%d%s" % (v, k[:4].upper()) for k, v in r["antwortet"].items()),
+        "d": ", ".join(r["domains"][:2])} for r in erg[:args.top]],
+        [("kw", "KEYWORD", 34, "l"), ("t", "T", 1, "r"), ("cpc", "CPC", 6, "r"),
+         ("vol", "VOL", 6, "r"), ("comp", "COMP", 4, "r"), ("s", "SICH", 5, "r"),
+         ("a", "WER ANTWORTET", 16, "l"), ("d", "TOP-DOMAINS", 34, "l")]))
+    print(rule("-"))
+    print("  %d Luecken. Hoher CPC heisst: jemand zahlt fuer diese Sucher," % len(erg))
+    print("  aber niemand verkauft ihnen etwas auf der organischen Seite.")
+    if args.json:
+        open(args.json, "w", encoding="utf-8").write(
+            json.dumps(erg, ensure_ascii=False, indent=2))
+        print("  -> %s" % args.json)
+    return 0
+
+
 def cmd_rescore(args):
     """Urteile aus gespeicherten Rohsignalen neu ableiten. Kein Abruf, 0 $."""
     import json as _json
-    from .classify import CONFIDENCE_FLOOR, load_overrides, override_verdict, rescore
+    from .classify import (CONFIDENCE_FLOOR, list_verdict, load_overrides,
+                           override_verdict, rescore)
     from .store import connect
 
     conn = connect()
@@ -567,7 +602,14 @@ def cmd_rescore(args):
         geprueft += 1
         if old.get("kind") != "unknown" and old.get("confidence", 0) >= CONFIDENCE_FLOOR:
             vorher += 1
-        new = override_verdict(r["keyword"], overrides) or rescore(old)
+        # Reihenfolge: Override, dann Domainliste, dann Rohsignale. Die
+        # Listen sind keine Signale -- ohne diesen Schritt wirkt eine
+        # Listenaenderung erst nach erneutem Abruf.
+        from urllib.parse import urlparse
+        dom = urlparse(r["keyword"]).netloc or r["keyword"]
+        new = (override_verdict(r["keyword"], overrides)
+               or list_verdict(dom)
+               or (rescore(old) if old.get("source") != "liste" else old))
         if new.get("kind") != "unknown" and new.get("confidence", 0) >= CONFIDENCE_FLOOR:
             nachher += 1
         if new != old:
@@ -718,6 +760,14 @@ def main(argv=None):
     dv.add_argument("--top", type=int, default=20)
     dv.add_argument("--json")
     dv.set_defaults(fn=cmd_dive)
+
+    gp = sub.add_parser("gaps", help="Wo niemand verkauft (Umkehrung von PROD)")
+    gp.add_argument("--min-cpc", type=float, default=0.0)
+    gp.add_argument("--min-volume", type=int, default=0)
+    gp.add_argument("--tiers", help="Standard 1,2,3 -- '0,1,2,3' nimmt Offen dazu")
+    gp.add_argument("--top", type=int, default=30)
+    gp.add_argument("--json")
+    gp.set_defaults(fn=cmd_gaps)
 
     cp = sub.add_parser("compare", help="Gebiete nebeneinander, aus dem Cache")
     cp.add_argument("--serp", choices=("PROD", "MIX", "RED"))

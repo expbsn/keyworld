@@ -247,6 +247,36 @@ class Dive(unittest.TestCase):
                            dive.estimate("standard", 25, T())[0])
 
 
+class Luecken(unittest.TestCase):
+    """Die Umkehrung der PROD-Sicht: wo niemand verkauft."""
+
+    def test_ein_anbieter_reicht_zum_ausschluss(self):
+        ok, grund = dive.ist_luecke(["article", "forum", "article", "product"])
+        self.assertFalse(ok)
+        self.assertIn("Anbieter", grund)
+
+    def test_luecke_wird_erkannt(self):
+        ok, _ = dive.ist_luecke(["article", "forum", "article", "institution"])
+        self.assertTrue(ok)
+
+    def test_duenne_beleglage_ist_keine_luecke(self):
+        """Ohne genug sichere Treffer ist 'kein Anbieter' nicht belegbar."""
+        ok, grund = dive.ist_luecke(["article", None, None, None])
+        self.assertFalse(ok)
+        self.assertIn("sichere", grund)
+
+    def test_gratisware_ist_keine_luecke(self):
+        """Pinterest, Etsy und Canva heissen: Vorlagen, nicht unbedienter Bedarf."""
+        ok, grund = dive.ist_luecke(["marketplace", "marketplace", "download",
+                                     "article"])
+        self.assertFalse(ok)
+        self.assertIn("Gratisware", grund)
+
+    def test_ohne_antwortende_kein_belegter_bedarf(self):
+        ok, grund = dive.ist_luecke(["marketplace", "marketplace", "marketplace"])
+        self.assertFalse(ok)
+
+
 class Entdoppeln(unittest.TestCase):
     def test_umlaut_und_wortstellung(self):
         self.assertEqual(dive.normform("Fußpflege"), dive.normform("fusspflege"))
@@ -360,14 +390,28 @@ class Doku(unittest.TestCase):
     geben. '--product-serp-only' war beim CLI-Neubau still verschwunden und
     stand trotzdem noch in der Anleitung."""
 
-    COMMANDS = ("scout", "gen", "review", "queue", "costs", "serve",
-                "discover", "rescore", "fetch", "probe", "dive",
-                "compare")
     FLAG = re.compile(r"(?<![\w-])--[a-z][a-z-]{2,}")
+
+    def _commands(self):
+        """Aus dem Parser ableiten statt pflegen -- eine handgefuehrte Liste
+        veraltet bei jedem neuen Kommando, und genau das ist dreimal
+        passiert."""
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            with self.assertRaises(SystemExit):
+                main(["--help"])
+        m = re.search(r"\{([a-z,]+)\}", buf.getvalue())
+        self.assertIsNotNone(m, "Kommandoliste nicht im Hilfetext gefunden")
+        return tuple(m.group(1).split(","))
+
+    def test_alle_kommandos_gefunden(self):
+        cmds = self._commands()
+        self.assertIn("scout", cmds)
+        self.assertGreaterEqual(len(cmds), 8)
 
     def _known_flags(self):
         known = set()
-        for cmd in self.COMMANDS:
+        for cmd in self._commands():
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
                 with self.assertRaises(SystemExit):

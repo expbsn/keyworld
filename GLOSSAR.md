@@ -227,6 +227,25 @@ kostenlos ein.
 
 ---
 
+## Luecke
+
+Ein Keyword mit konkreter Absicht (Stufe 1-3), auf dessen SERP **keine
+einzige sichere Produktseite** steht, aber mindestens ein Forum, eine
+Institution oder ein Ratgeber. Jemand hat ein Problem, jemand antwortet
+darauf -- aber niemand verkauft etwas dagegen.
+
+**WER ANTWORTET** — Wer die Frage stattdessen beantwortet. `7INST` heisst
+sieben Behoerden- oder Verbandsseiten, `2FORU` zwei Foren, `5ARTI` fuenf
+Ratgeber.
+
+**SICH** — Sichere Einstufungen von Gesamttreffern. Unter 3 wird nichts
+als Luecke gemeldet: ohne Beleglage ist "kein Anbieter" eine Behauptung,
+keine Feststellung. `8/8` ist eine harte Aussage, `3/7` eine weiche.
+
+Ausgeschlossen sind SERPs, die zu mehr als 40 % aus Vorlagen-Downloads
+und Marktplaetzen bestehen -- Pinterest, Etsy und Canva heissen
+Gratisware, nicht unbedienter Bedarf.
+
 ## Tiefenanalyse
 
 **Umfang** — Wie viel der Dive einkauft. `schnell` nutzt nur bezahlte
@@ -272,6 +291,7 @@ oder Gratis-Vorlagen sitzen.
 | `review` | Zustand und Notiz je Keyword | 0 |
 | `queue` | Overrides anzeigen und ergaenzen | 0 |
 | `compare` | Gebiete nebeneinander, aus dem Cache | 0 |
+| `gaps` | Wo niemand verkauft | 0 |
 | `dive` | Tiefenanalyse eines Gebiets | 0 bis 0,14 $ |
 | `rescore` | Urteile aus Rohsignalen neu ableiten | 0 |
 | `serve` | Interface im Browser | 0 |

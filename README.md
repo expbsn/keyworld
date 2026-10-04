@@ -164,6 +164,38 @@ naeher beieinander liegen, sind nicht unterscheidbar -- und wo die
 Unschaerfe den Wert uebersteigt (`8±10`), bedeutet die Rangposition
 nichts. Das gehoert in die Ausgabe, nicht in eine Fussnote.
 
+## Luecken: wo niemand verkauft
+
+    ./keyworld.sh gaps
+    ./keyworld.sh gaps --min-cpc 3 --tiers 1,2,3
+
+Die Umkehrung der PROD-Sicht. `--serp PROD` fragt "wo kann ein Produkt
+ranken". `gaps` fragt: **wo hat jemand ein konkretes Problem, und niemand
+verkauft etwas dagegen.**
+
+Ein Keyword gilt als Luecke, wenn alle vier Bedingungen gelten:
+
+    1  Absichtsstufe 1 bis 3   konkretes Problem, nicht Orientierung
+    2  kein einziger Anbieter  keine sichere Produktseite in den Top 10
+    3  mindestens 3 sichere    sonst ist "kein Anbieter" nicht belegbar
+       Einstufungen
+    4  jemand antwortet        Forum, Institution oder Ratgeber --
+                               sonst ist der Bedarf nicht belegt
+
+Ausgeschlossen sind Vorlagen- und Marktplatz-SERPs (ueber 40 % Anteil):
+Pinterest, Etsy und Canva heissen Gratisware, nicht unbedienter Bedarf.
+
+Sortiert nach CPC absteigend. Ein hoher Klickpreis auf einer SERP ohne
+Anbieter heisst: jemand zahlt fuer diese Sucher, aber niemand verkauft
+ihnen etwas auf der organischen Seite.
+
+**Warum es diese Sicht braucht.** Der CPC-Filter findet kommerziell
+bestaetigte Maerkte -- und kommerzielle Bestaetigung haengt mit
+Platzhirsch-Praesenz zusammen: wer profitabel Traffic kauft, hat bereits
+ein Geschaeft. Je besser ein Gebiet nach dem CPC-Filter aussieht, desto
+wahrscheinlicher ist es besetzt. Die Lueckensicht sucht die
+Gegensignatur und findet Keywords, die der CPC-Filter nie zeigt.
+
 ## Gebiete vergleichen
 
     ./keyworld.sh compare --serp PROD

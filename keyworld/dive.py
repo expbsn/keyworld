@@ -181,6 +181,106 @@ def fragen(serps, limit=25):
             "related": list(dict.fromkeys(related))[:limit]}
 
 
+# -- Luecken ------------------------------------------------------------------
+# Die Umkehrung der PROD-Sicht. PROD fragt "wo kann ein Produkt ranken".
+# Hier wird gefragt: wo hat jemand ein konkretes Problem, und niemand
+# verkauft etwas dagegen.
+#
+# Gefunden wurde diese Signatur zuerst von Hand bei einem Norm-Keyword: acht
+# Treffer, kein einziger Anbieter, stattdessen Steuerberater, Seminare und
+# ein Forenthread. Der CPC-Filter haette das nie gezeigt -- hohe Klickpreise
+# bedeuten, dass jemand dort profitabel Traffic kauft, und wer das tut, hat
+# bereits ein Geschaeft.
+
+GAP_MIN_SURE = 3          # darunter ist "kein Produkt" nicht belegbar
+GAP_MAX_COMMODITY = 0.40  # Vorlagen- und Marktplatzlastige SERPs sind keine
+                          # Luecke, sondern Gratisware (Canva, Amazon)
+ANTWORTET = ("forum", "institution", "article")
+
+
+def ist_luecke(arten):
+    """Entscheidet ueber eine Trefferliste, ob sie eine Luecke ist.
+
+    arten: je Treffer die Kategorie oder None, wenn unsicher eingestuft.
+    -> (bool, grund)
+    """
+    sicher = [a for a in arten if a]
+    if len(sicher) < GAP_MIN_SURE:
+        return False, "zu wenige sichere Treffer (%d)" % len(sicher)
+    if any(a == "product" for a in sicher):
+        return False, "mindestens ein Anbieter rankt"
+    ware = sum(1 for a in sicher if a in ("download", "marketplace"))
+    if ware / len(sicher) > GAP_MAX_COMMODITY:
+        return False, "Vorlagen- und Marktplatzlastig, Gratisware"
+    if not any(a in ANTWORTET for a in sicher):
+        return False, "niemand antwortet, kein Bedarf belegt"
+    return True, "kein Anbieter, aber %d Antwortende" % sum(
+        1 for a in sicher if a in ANTWORTET)
+
+
+def gaps(conn, pages=None, min_cpc=0.0, min_volume=0, tiers=(1, 2, 3)):
+    """Keywords mit konkreter Absicht, auf deren SERP niemand verkauft.
+
+    Arbeitet ueber alle je geholten SERPs, nicht nur ueber die Shortlist --
+    die aufschlussreichsten Lueckenkandidaten stammen aus Dives und standen
+    nie im Zustandsspeicher.
+    """
+    pages = _pages_from_cache(conn) if pages is None else pages
+    metriken = {}
+    for r in conn.execute("SELECT keyword, payload FROM kw_cache"
+                          " WHERE source='dataforseo'"):
+        try:
+            d = json.loads(r["payload"])
+        except ValueError:
+            continue
+        if isinstance(d, dict) and "search_volume" in d:
+            metriken[d.get("keyword", r["keyword"])] = d
+
+    out = []
+    for r in conn.execute("SELECT keyword, payload FROM kw_cache"
+                          " WHERE source='dataforseo:serp'"):
+        kw = r["keyword"]
+        try:
+            serp = json.loads(r["payload"])
+        except ValueError:
+            continue
+        org = serp.get("organics") or []
+        if not org:
+            continue
+
+        lvl, lvl_name, _p = classify_intent(kw)
+        if lvl not in tiers:
+            continue
+        d = metriken.get(kw, {})
+        cpc = d.get("cpc") or 0.0
+        vol = d.get("search_volume") or 0
+        if cpc < min_cpc or vol < min_volume:
+            continue
+
+        arten = []
+        for o in org:
+            v = pages.get((o.get("url") or "").lower()) or {}
+            sicher = (v.get("kind", "unknown") != "unknown"
+                      and v.get("confidence", 0) >= CONFIDENCE_FLOOR)
+            arten.append(v.get("kind") if sicher else None)
+        ok, grund = ist_luecke(arten)
+        if not ok:
+            continue
+        sicher_n = sum(1 for a in arten if a)
+        zaehler = Counter(a for a in arten if a)
+        out.append({
+            "keyword": kw, "tier": lvl, "tier_name": lvl_name,
+            "cpc": round(cpc, 2), "volume": vol,
+            "competition": d.get("competition_index"),
+            "sure": sicher_n, "total": len(org),
+            "antwortet": dict((k, zaehler[k]) for k in ANTWORTET if zaehler[k]),
+            "grund": grund,
+            "domains": [o["domain"] for o in org[:4]],
+        })
+    out.sort(key=lambda r: (-(r["cpc"] or 0), -(r["volume"] or 0)))
+    return out
+
+
 def load_brands(path=None):
     """Markennamen aus data/brands.txt. Eine Marke ist kein Gebiet: ihr hoher
     CPC kommt daher, dass Wettbewerber auf einen fremden Namen bieten. Dort

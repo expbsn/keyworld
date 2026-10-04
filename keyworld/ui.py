@@ -245,6 +245,12 @@ class Handler(BaseHTTPRequestHandler):
             kw = qs.get("keyword") or ""
             return self._send(200, dict(
                 (sc, dive_estimate(kw, sc)) for sc in ("schnell", "standard", "tief")))
+        if u.path == "/api/gaps":
+            from .dive import gaps
+            return self._send(200, {"rows": gaps(
+                connect(), min_cpc=float(qs.get("min_cpc") or 0),
+                min_volume=int(qs.get("min_volume") or 0),
+                tiers=tuple(int(t) for t in (qs.get("tiers") or "1,2,3").split(",")))})
         if u.path == "/api/costs":
             return self._send(200, costs())
         return self._send(404, {"error": "not found"})
