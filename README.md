@@ -85,6 +85,12 @@ Themengebiet, Stufe-2-Muster brauchen PRODUKTNAMEN.
     data/domains.txt   Aufgaben    -> {d} vorlage, {d} in excel, {d} app
     data/brands.txt    Produkte    -> {d} alternative, {d} preise
 
+Beide Dateien sind deine Recherche und bleiben lokal (`.gitignore`). Zum
+Start die Vorlagen kopieren:
+
+    cp data/domains.example.txt data/domains.txt
+    cp data/brands.example.txt data/brands.txt
+
 "alternative zu kassenbuch" sucht niemand, "trello alternative" schon.
 Marken sind fast dreimal so ergiebig (8,3 % ueber der Volumenschwelle
 gegen 3,0 % bei Aufgaben).

@@ -1,0 +1,8 @@
+# Produktnamen statt Aufgaben, einer je Zeile. Kopiere nach data/brands.txt.
+# Stufe-2-Muster (Frust, Wechsel) brauchen ein konkretes Produkt als
+# Bezugspunkt -- "alternative zu kassenbuch" sucht niemand, "trello
+# alternative" schon. Im Vergleich (compare) werden Marken ausgeblendet.
+trello
+asana
+mailchimp
+doodle

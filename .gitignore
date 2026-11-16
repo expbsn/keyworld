@@ -5,3 +5,9 @@ reports/*.html
 __pycache__/
 *.pyc
 .DS_Store
+
+# Eigene Recherche bleibt lokal. Vorlagen liegen als *.example.txt bei.
+reports/
+data/domains.txt
+data/brands.txt
+data/overrides.csv
