@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Keyworld</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0a0a'/%3E%3Cg fill='none' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' transform='translate(4 4)'%3E%3Ccircle cx='7.5' cy='12' r='4' stroke='%234fe08a'/%3E%3Cpath d='M11.5 12H21M17 12v3M20 12v2.5' stroke='%23ececec'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
 <style>
@@ -252,7 +253,7 @@ select.ov{background:var(--s2);color:var(--t1);border:1px solid var(--line);bord
 <div class="app">
 <aside>
   <div class="brand">
-    <svg class="logo" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M5 19V4"/><path d="M5 19h15"/><circle cx="14" cy="10" r="2" fill="#4fe08a" stroke="none"/></svg>
+    <svg class="logo" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="12" r="4" stroke="#4fe08a"/><path d="M11.5 12H21M17 12v3M20 12v2.5"/></svg>
     <span class="name">Keyworld</span>
     <button class="icbtn" id="sidetoggle" aria-label="Seitenleiste ein- oder ausklappen" title="Seitenleiste  ["><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg></button>
   </div>
@@ -268,6 +269,7 @@ select.ov{background:var(--s2);color:var(--t1);border:1px solid var(--line);bord
     <div class="row"><span>Ausgegeben</span><b id="spent"></b></div>
     <div class="meter"><i id="meter"></i></div>
     <div class="hint" id="saved"></div>
+    <div class="row" id="dsrow" hidden><span>DeepSeek-Guthaben</span><b id="dsbal"></b></div>
   </div>
 </aside>
 
@@ -352,6 +354,12 @@ async function load(){
   $("#meter").style.width = Math.min(100, 100*d.kosten.spent/Math.max(d.kosten.budget, d.kosten.spent, .01)) + "%";
   $("#saved").textContent = `${nf.format(d.kosten.calls)} Abrufe, ${usd(d.kosten.saved)} durch Cache gespart`;
   sidebarThreads(); if (!$("#view-list").hidden) renderList(); bind(bound);
+  if (d.llm) api("/api/guthaben").then(g => {
+    const b = g.deepseek; if (!b || b.fehler || !b.salden || !b.salden.length) return;
+    const s0 = b.salden.find(x => x.waehrung === "USD") || b.salden[0];
+    $("#dsrow").hidden = false;
+    $("#dsbal").textContent = s0.gesamt.toLocaleString("de-DE", {minimumFractionDigits: 2, maximumFractionDigits: 2}) + (s0.waehrung === "USD" ? " $" : " " + s0.waehrung);
+  });
 }
 
 function sidebarThreads(){
@@ -700,17 +708,46 @@ async function loadQueue(){
     if (!sel.value) return;
     await post("/api/override", {domain: sel.dataset.d, type: sel.value, note: "via Interface"}); loadQueue(); });
 }
+const ANBIETER = {dataforseo: "DataForSEO", deepseek: "DeepSeek", "free-autocomplete": "Autocomplete (gratis)"};
 async function loadCosts(){
-  const box = $("#view-costs"); const d = await api("/api/costs"); if (d.error){ box.innerHTML = errHTML(d.error); return; }
-  box.innerHTML = `<div class="head"><div><h1>Kosten</h1><div class="meta">Alles, was Keyworld je ausgegeben hat, nach den Angaben der Anbieter</div></div></div>
-    <div class="stats"><div class="stat"><div class="l">Ausgegeben</div><div class="v">${usd(d.spent, 4)}</div></div>
-      <div class="stat"><div class="l">Durch Cache gespart</div><div class="v">${usd(d.saved, 4)}</div></div>
-      <div class="stat"><div class="l">Abrufe</div><div class="v">${nf.format(d.calls)}</div></div>
-      <div class="stat"><div class="l">Markt</div><div class="v">${esc(d.market)}</div></div></div>
-    <div class="list"><table><colgroup><col style="width:140px"><col><col style="width:80px"><col style="width:110px"><col style="width:100px"></colgroup>
-    <thead><tr><th>Lauf</th><th>Anlass</th><th class="r">Abrufe</th><th class="r">USD</th><th>Status</th></tr></thead><tbody>` +
-    d.runs.map(r => `<tr><td class="num">${esc(r.run_id)}</td><td class="kw">${esc(r.seed)}</td><td class="r num">${r.calls}</td><td class="r num">${(r.cost||0).toFixed(4).replace(".", ",")}</td><td>${esc(r.status)}</td></tr>`).join("") +
-    `</tbody></table></div>`;
+  const box = $("#view-costs"); box.innerHTML = `<div class="head"><div><h1>Kosten</h1><div class="meta">lädt …</div></div></div>`;
+  const d = await api("/api/costs"); if (d.error){ box.innerHTML = errHTML(d.error); return; }
+  const by = p => (d.anbieter.find(a => a.provider === p) || {cost: 0, calls: 0});
+  const dfs = by("dataforseo"), ds = by("deepseek");
+  let bal = "–", balSub = "kein DEEPSEEK_API_KEY";
+  if (d.deepseek && d.deepseek.fehler){ balSub = d.deepseek.fehler; }
+  else if (d.deepseek && d.deepseek.salden && d.deepseek.salden.length){
+    const s0 = d.deepseek.salden.find(x => x.waehrung === "USD") || d.deepseek.salden[0];
+    bal = s0.gesamt.toLocaleString("de-DE", {minimumFractionDigits: 2, maximumFractionDigits: 2}) + (s0.waehrung === "USD" ? " $" : " " + s0.waehrung);
+    balSub = d.deepseek.verfuegbar ? `davon ${de2(s0.aufgeladen)} aufgeladen, ${de2(s0.geschenkt)} geschenkt` : "reicht nicht mehr für Aufrufe";
+  }
+  const llmN = d.llm_aufrufe.length, einsch = d.llm_aufrufe.filter(x => (x.note || "").startsWith("einschaetzung"));
+  const avg = einsch.length ? einsch.reduce((a, x) => a + x.cost, 0) / einsch.length : null;
+  const monate = [...new Set(d.monate.map(m => m.monat))];
+  const zelle = (m, p) => { const x = d.monate.find(y => y.monat === m && y.provider === p); return x ? usd(x.cost, 4) : "–"; };
+  const datum = ts => new Date(ts*1000).toLocaleString("de-DE", {day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"});
+  box.innerHTML = `<div class="head"><div><h1>Kosten</h1><div class="meta">Nach den Angaben der Anbieter, jeder Aufruf einzeln im Ledger</div></div></div>
+    <div class="stats">
+      <div class="stat"><div class="l">Gesamt ausgegeben</div><div class="v">${usd(d.spent, 2)}</div><div class="s">${usd(d.saved, 2)} durch Cache gespart</div></div>
+      <div class="stat"><div class="l">DataForSEO</div><div class="v">${usd(dfs.cost, 2)}</div><div class="s">${nf.format(dfs.calls)} Abrufe</div></div>
+      <div class="stat"><div class="l">DeepSeek</div><div class="v">${usd(ds.cost, 4)}</div><div class="s">${nf.format(ds.calls)} Aufrufe${avg != null ? `, Einschätzung Ø ${usd(avg, 4)}` : ""}</div></div>
+      <div class="stat"><div class="l">DeepSeek-Guthaben</div><div class="v">${esc(bal)}</div><div class="s">${esc(balSub)}</div></div>
+    </div>
+    <div class="group"><div class="gh"><h2>Nach Monat</h2></div>
+      <div class="list"><table><colgroup><col><col style="width:160px"><col style="width:160px"></colgroup>
+      <thead><tr><th>Monat</th><th class="r">DataForSEO</th><th class="r">DeepSeek</th></tr></thead><tbody>` +
+      (monate.length ? monate.map(m => `<tr><td class="kw num">${esc(m)}</td><td class="r num">${zelle(m, "dataforseo")}</td><td class="r num">${zelle(m, "deepseek")}</td></tr>`).join("") : `<tr><td colspan="3">Noch nichts ausgegeben</td></tr>`) +
+      `</tbody></table></div></div>
+    <div class="group"><div class="gh"><h2>DeepSeek-Aufrufe</h2><span class="n">${llmN}</span><span class="d">die letzten 25, mit gemeldeten Tokens</span></div>
+      <div class="list">${llmN ? `<table><colgroup><col style="width:120px"><col><col style="width:140px"><col style="width:100px"><col style="width:110px"></colgroup>
+      <thead><tr><th>Zeit</th><th>Anlass</th><th>Modell</th><th class="r">Tokens</th><th class="r">USD</th></tr></thead><tbody>` +
+      d.llm_aufrufe.map(x => `<tr><td class="num">${datum(x.ts)}</td><td class="kw">${esc(x.note)}</td><td>${esc(x.model)}</td><td class="r num">${nf.format(x.tokens)}</td><td class="r num">${usd(x.cost, 4)}</td></tr>`).join("") +
+      `</tbody></table>` : `<div class="empty">Noch keine Aufrufe</div>`}</div></div>
+    <div class="group"><div class="gh"><h2>Läufe</h2><span class="d">die letzten 25</span></div>
+      <div class="list"><table><colgroup><col style="width:140px"><col><col style="width:80px"><col style="width:110px"><col style="width:100px"></colgroup>
+      <thead><tr><th>Lauf</th><th>Anlass</th><th class="r">Abrufe</th><th class="r">USD</th><th>Status</th></tr></thead><tbody>` +
+      d.runs.map(r => `<tr><td class="num">${esc(r.run_id)}</td><td class="kw">${esc(r.seed)}</td><td class="r num">${r.calls}</td><td class="r num">${usd(r.cost || 0, 4)}</td><td>${esc(r.status)}</td></tr>`).join("") +
+      `</tbody></table></div></div>`;
 }
 function showView(v){
   ["list","detail","queue","costs"].forEach(x => $("#view-" + x).hidden = x !== v);

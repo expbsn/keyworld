@@ -425,7 +425,8 @@ Funktionen wie die CLI. Aufbau:
     Detail      Kennzahlen, Suchverlauf ueber 12 Monate, Seite 1 mit
                 Einstufung, Lage im Markt, Tiefenanalyse und der Dialog.
     Pruefliste  unsichere Domains; eine Auswahl schreibt overrides.csv.
-    Kosten      Ledger, Laeufe, Cache-Ersparnis.
+    Kosten      je Anbieter und Monat, jeder DeepSeek-Aufruf mit Tokens
+                und Preis, das aktuelle DeepSeek-Guthaben, Laeufe.
 
 Tastatur:
 

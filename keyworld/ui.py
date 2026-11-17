@@ -353,11 +353,43 @@ def typen_fuer_ui(market):
         return {"zuordnung": z, "ausgegeben": round(run.total_cost(), 4)}
 
 
+_GUTHABEN = {"ts": 0, "wert": None}
+
+
+def deepseek_guthaben(max_alter=300):
+    """Kontostand bei DeepSeek, fuenf Minuten zwischengespeichert."""
+    import time
+    from .llm import DeepSeek, LLMFehler
+    if not Config.has_llm():
+        return None
+    if time.time() - _GUTHABEN["ts"] > max_alter:
+        try:
+            _GUTHABEN["wert"] = DeepSeek().guthaben()
+        except LLMFehler as e:
+            _GUTHABEN["wert"] = {"fehler": str(e)}
+        _GUTHABEN["ts"] = time.time()
+    return _GUTHABEN["wert"]
+
+
 def costs():
     spent, saved, calls = lifetime_cost()
+    conn = connect()
+    anbieter = [dict(r) for r in conn.execute(
+        "SELECT provider, COUNT(*) AS calls, COALESCE(SUM(cost_usd),0) AS cost,"
+        " COALESCE(SUM(saved_usd),0) AS saved FROM cost_ledger GROUP BY provider"
+        " ORDER BY cost DESC")]
+    monate = [dict(r) for r in conn.execute(
+        "SELECT strftime('%Y-%m', ts, 'unixepoch', 'localtime') AS monat, provider,"
+        " COUNT(*) AS calls, COALESCE(SUM(cost_usd),0) AS cost FROM cost_ledger"
+        " GROUP BY monat, provider ORDER BY monat DESC, provider")]
+    llm = [dict(r) for r in conn.execute(
+        "SELECT ts, endpoint AS model, units AS tokens, cost_usd AS cost, note"
+        " FROM cost_ledger WHERE provider='deepseek' ORDER BY ts DESC LIMIT 25")]
     return {"spent": round(spent, 4), "saved": round(saved, 4), "calls": calls,
             "runs": all_runs(25), "states": state_counts(Config.market()),
-            "market": Config.market()}
+            "market": Config.market(), "anbieter": anbieter, "monate": monate,
+            "llm_aufrufe": llm, "deepseek": deepseek_guthaben(),
+            "llm_model": Config.llm_model}
 
 
 # -- HTTP ---------------------------------------------------------------------
@@ -428,6 +460,8 @@ class Handler(BaseHTTPRequestHandler):
             if not kw:
                 return self._send(400, {"error": "k noetig"})
             return self._send(200, keyword_detail(market, kw))
+        if u.path == "/api/guthaben":
+            return self._send(200, {"deepseek": deepseek_guthaben()})
         if u.path == "/api/markt":
             return self._send(200, {"punkte": _gemessen(connect())})
         if u.path == "/api/messen/schaetzung":

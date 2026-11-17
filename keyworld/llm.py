@@ -99,3 +99,28 @@ class DeepSeek:
         choice = (data.get("choices") or [{}])[0]
         text = ((choice.get("message") or {}).get("content") or "").strip()
         return text, data.get("usage") or {}, data.get("model") or model
+
+    def guthaben(self):
+        """Kontostand laut DeepSeek. -> {"verfuegbar": bool, "usd": float|None, ...}"""
+        if not self.api_key:
+            raise LLMFehler("DEEPSEEK_API_KEY fehlt in .env")
+        try:
+            r = requests.get("%s/user/balance" % self.base_url,
+                             headers={"Authorization": "Bearer %s" % self.api_key},
+                             timeout=15)
+        except requests.RequestException as e:
+            raise LLMFehler("DeepSeek nicht erreichbar: %s" % type(e).__name__)
+        if r.status_code != 200:
+            raise LLMFehler("DeepSeek %d beim Kontostand" % r.status_code)
+        d = r.json()
+        out = {"verfuegbar": bool(d.get("is_available")), "salden": []}
+        for b in d.get("balance_infos") or []:
+            try:
+                out["salden"].append({"waehrung": b.get("currency"),
+                                      "gesamt": float(b.get("total_balance") or 0),
+                                      "geschenkt": float(b.get("granted_balance") or 0),
+                                      "aufgeladen": float(b.get("topped_up_balance") or 0)})
+            except (TypeError, ValueError):
+                continue
+        return out
+

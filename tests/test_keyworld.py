@@ -555,3 +555,18 @@ class Einschaetzung(unittest.TestCase):
             self.assertEqual([m["art"] for m in verlauf(run.conn, "m/de", "test vorlage")],
                              ["start", "einschaetzung", "frage", "antwort"])
             self.assertEqual(len(run.breakdown()), 1)       # alle drei Aufrufe gebucht
+
+
+class Guthaben(unittest.TestCase):
+    def test_kontostand_lesen(self):
+        from unittest import mock
+        from keyworld.llm import DeepSeek
+        r = mock.Mock(status_code=200)
+        r.json.return_value = {"is_available": True, "balance_infos": [
+            {"currency": "USD", "total_balance": "4.20", "granted_balance": "0.00",
+             "topped_up_balance": "4.20"}]}
+        with mock.patch("keyworld.llm.requests.get", return_value=r) as get:
+            g = DeepSeek(api_key="x").guthaben()
+        self.assertTrue(get.call_args.args[0].endswith("/user/balance"))
+        self.assertTrue(g["verfuegbar"])
+        self.assertEqual(g["salden"][0]["gesamt"], 4.2)
