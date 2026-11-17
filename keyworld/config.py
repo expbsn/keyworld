@@ -30,6 +30,14 @@ class Config:
     run_budget_usd = float(os.environ.get("KEYWORLD_RUN_BUDGET_USD", 2.0))
     cache_ttl_days = int(os.environ.get("KEYWORLD_CACHE_TTL_DAYS", 30))
     db_path = DATA_DIR / "keyworld.db"
+    deepseek_api_key = os.environ.get("DEEPSEEK_API_KEY", "")
+    deepseek_base_url = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+    llm_model = os.environ.get("KEYWORLD_LLM_MODEL", "deepseek-v4-pro")
+    llm_model_schnell = os.environ.get("KEYWORLD_LLM_MODEL_SCHNELL", "deepseek-flash")
+
+    @classmethod
+    def has_llm(cls):
+        return bool(cls.deepseek_api_key)
 
     @classmethod
     def has_dataforseo(cls):

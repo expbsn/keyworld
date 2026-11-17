@@ -433,3 +433,125 @@ class Doku(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Produkttyp(unittest.TestCase):
+    def test_regeln_und_vorrang(self):
+        from keyworld.typen import typ_aus_regeln
+        for kw, want in [("zeiterfassung app", "software"),
+                         ("angebot erstellen vorlage", "vorlage"),
+                         ("dienstplan erstellen", "rechner"),
+                         ("logo erstellen lassen", "dienst"),
+                         ("was ist inventur", "wissen"),
+                         ("nebenkostenabrechnung frist", "wissen"),
+                         ("shopify erfahrungen", "unklar")]:
+            self.assertEqual(typ_aus_regeln(kw), want, kw)
+
+    def test_gespeichert_nur_fuer_unklare(self):
+        from keyworld.typen import typ
+        gesp = {"shopify erfahrungen": "software", "zeiterfassung app": "wissen"}
+        self.assertEqual(typ("shopify erfahrungen", gesp), "software")
+        # eine Regel schlaegt eine gespeicherte Einordnung
+        self.assertEqual(typ("zeiterfassung app", gesp), "software")
+
+
+class Sprachmodell(unittest.TestCase):
+    def test_kosten_stosszeit_und_rest(self):
+        from datetime import datetime, timezone
+        from keyworld.llm import kosten
+        usage = {"prompt_cache_hit_tokens": 1000, "prompt_cache_miss_tokens": 4000,
+                 "completion_tokens": 3000}
+        peak = datetime(2026, 11, 17, 7, 0, tzinfo=timezone.utc).timestamp()   # Dienstag
+        off = datetime(2026, 11, 21, 7, 0, tzinfo=timezone.utc).timestamp()    # Samstag
+        voll = (1000 * 0.044 + 4000 * 1.32 + 3000 * 3.96) / 1e6
+        self.assertAlmostEqual(kosten("deepseek-v4-pro", usage, peak), voll, places=9)
+        self.assertAlmostEqual(kosten("deepseek-v4-pro", usage, off), voll / 2, places=9)
+
+    def test_ohne_cache_felder(self):
+        from keyworld.llm import kosten
+        usage = {"prompt_tokens": 2000, "completion_tokens": 100}
+        self.assertGreater(kosten("deepseek-flash", usage), 0)
+
+    def test_anfrage_und_fehler(self):
+        from unittest import mock
+        from keyworld.llm import DeepSeek, LLMFehler
+        antwort = mock.Mock(status_code=200)
+        antwort.json.return_value = {"choices": [{"message": {"content": " {\"a\": 1} "}}],
+                                     "usage": {"total_tokens": 5}, "model": "deepseek-v4-pro"}
+        with mock.patch("keyworld.llm.requests.post", return_value=antwort) as post:
+            text, usage, model = DeepSeek(api_key="x").chat(
+                [{"role": "user", "content": "json"}], model="deepseek-v4-pro", json_mode=True)
+        body = __import__("json").loads(post.call_args.kwargs["data"])
+        self.assertEqual(body["response_format"], {"type": "json_object"})
+        self.assertEqual(body["thinking"], {"type": "enabled"})
+        self.assertEqual(text, '{"a": 1}')
+        leer = mock.Mock(status_code=402, text="")
+        leer.json.return_value = {}
+        with mock.patch("keyworld.llm.requests.post", return_value=leer):
+            with self.assertRaises(LLMFehler) as ctx:
+                DeepSeek(api_key="x").chat([])
+        self.assertIn("Guthaben", str(ctx.exception))
+        with self.assertRaises(LLMFehler):
+            DeepSeek(api_key="").chat([])
+
+
+class Einschaetzung(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        from keyworld.config import Config
+        self._alt = Config.db_path
+        self._tmp = tempfile.TemporaryDirectory()
+        Config.db_path = Path(self._tmp.name) / "t.db"
+
+    def tearDown(self):
+        from keyworld.config import Config
+        Config.db_path = self._alt
+        self._tmp.cleanup()
+
+    def test_parse_robust(self):
+        from keyworld.einschaetzung import parse_einschaetzung
+        from keyworld.llm import LLMFehler
+        e = parse_einschaetzung('Vorspann {"urteil": "Lohnt sich.", "ton": 3, '
+                                '"abschnitte": [{"titel": "Die Zahlen", "text": "x"}, {"titel": "leer"}]}')
+        self.assertEqual(e["urteil"], "Lohnt sich")
+        self.assertEqual(e["ton"], 1.0)
+        self.assertEqual(len(e["abschnitte"]), 1)
+        for kaputt in ["", "   ", "kein json", '{"ton": 0.5}']:
+            with self.assertRaises((LLMFehler, ValueError)):
+                parse_einschaetzung(kaputt)
+
+    def test_einschaetzen_und_nachfragen_speichern(self):
+        import json as _json
+        from keyworld.einschaetzung import einschaetzen, kontext, nachfragen, verlauf
+        from keyworld.store import Run
+
+        class FalschesModell:
+            def __init__(self):
+                self.antworten = [
+                    ("   ", {"total_tokens": 10, "completion_tokens": 10}, "m"),
+                    (_json.dumps({"urteil": "Kleine Lücke", "ton": 0.8, "abschnitte": [
+                        {"titel": "Die Zahlen", "text": "590 Suchen"}]}),
+                     {"total_tokens": 100, "completion_tokens": 50}, "m"),
+                    ("Weil niemand verkauft.", {"total_tokens": 20, "completion_tokens": 5}, "m")]
+                self.nachrichten = []
+
+            def chat(self, messages, **kw):
+                self.nachrichten.append(messages)
+                return self.antworten.pop(0)
+
+        with Run(seed="test") as run:
+            run.cache_put("dataforseo", "test vorlage", {"keyword": "test vorlage",
+                          "search_volume": 590, "cpc": 2.91, "monthly": []}, market="m/de")
+            run.commit()
+            k = kontext(run.conn, "m/de", "test vorlage")
+            self.assertTrue(k["gemessen"])
+            self.assertEqual(k["typ"], "vorlage")
+            llm = FalschesModell()
+            v = einschaetzen(run.conn, "m/de", "Test Vorlage", run, llm, "deepseek-flash")
+            self.assertEqual(v[-1]["inhalt"]["urteil"], "Kleine Lücke")
+            v = nachfragen(run.conn, "m/de", "test vorlage", "Warum?", run, llm, "deepseek-flash")
+            # die Nachfrage sieht die erste Einschaetzung
+            self.assertIn("Kleine Lücke", " ".join(m["content"] for m in llm.nachrichten[-1]))
+            self.assertEqual([m["art"] for m in verlauf(run.conn, "m/de", "test vorlage")],
+                             ["start", "einschaetzung", "frage", "antwort"])
+            self.assertEqual(len(run.breakdown()), 1)       # alle drei Aufrufe gebucht

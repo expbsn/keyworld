@@ -1,382 +1,748 @@
-<!doctype html><html lang="de"><meta charset="utf-8">
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Keyworld</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#fbfbfa;--fg:#1a1a18;--dim:#8a8a82;--line:#e2e2dc;--card:#fff;
---acc:#2f6f4f;--warn:#9a6b1f;--bad:#9a3b2f;--bar:#dcdcd4;--sel:#eef2ee}
-@media(prefers-color-scheme:dark){:root{--bg:#111110;--fg:#e8e8e2;--dim:#7a7a72;
---line:#2a2a27;--card:#191918;--acc:#6fbf8f;--warn:#d9a441;--bad:#e07a6a;
---bar:#2e2e2a;--sel:#1d241f}}
+:root{
+  --bg:#0a0a0a; --s1:#111111; --s2:#171717; --s3:#1f1f1f;
+  --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --t1:#ececec; --t2:#a3a3a3; --t3:#6b6b6b;
+  --acc:#4fe08a; --acc-dim:rgba(79,224,138,.12);
+  --sans:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --serif:"Newsreader",Georgia,serif;
+  --ease:cubic-bezier(.2,.7,.2,1);
+}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);
-font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-header{position:sticky;top:0;z-index:5;background:var(--bg);
-border-bottom:1px solid var(--line);padding:10px 16px}
-.bar1{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
-h1{font-size:13px;margin:0;letter-spacing:.14em}
-nav{display:flex;gap:2px;margin-left:auto}
-nav button{background:none;border:1px solid transparent;color:var(--dim);
-padding:3px 10px;border-radius:4px;font:inherit;cursor:pointer}
-nav button.on{color:var(--fg);border-color:var(--line);background:var(--card)}
-.filters{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap;align-items:center}
-select,input{background:var(--card);color:var(--fg);border:1px solid var(--line);
-border-radius:4px;padding:3px 7px;font:inherit}
-input[type=search]{min-width:160px}
-label{color:var(--dim);font-size:11px;letter-spacing:.05em}
-main{padding:14px 16px 80px}
-table{width:100%;border-collapse:collapse;background:var(--card);
-border:1px solid var(--line);border-radius:5px;overflow:hidden}
-th,td{padding:5px 8px;text-align:left;border-bottom:1px solid var(--line);
-white-space:nowrap;font-variant-numeric:tabular-nums}
-th{color:var(--dim);font-weight:500;font-size:10px;text-transform:uppercase;
-letter-spacing:.06em;cursor:pointer;user-select:none}
-tbody tr{cursor:pointer}
-tbody tr.sel{background:var(--sel);box-shadow:inset 2px 0 0 var(--acc)}
-tr:last-child td{border-bottom:none}
-.n{text-align:right}.dim{color:var(--dim)}
-.bar{display:inline-block;width:46px;height:6px;border-radius:2px;
-background:var(--bar);vertical-align:middle}
-.bar>i{display:block;height:100%;border-radius:2px;background:var(--acc)}
-.b-mid>i{background:var(--warn)}.b-hi>i{background:var(--bad)}
-.t{display:inline-block;width:16px;height:16px;line-height:16px;text-align:center;
-border-radius:3px;font-size:10px;background:var(--bar)}
-.t1,.t2{background:var(--acc);color:var(--bg);font-weight:600}
-.pill{font-size:10px;letter-spacing:.05em;padding:0 5px;border-radius:3px;
-border:1px solid var(--line)}
-.PROD{color:var(--acc);border-color:var(--acc)}
-.RED{color:var(--bad);border-color:var(--bad)}
-.st-shortlisted{color:var(--acc)}.st-rejected{color:var(--dim);text-decoration:line-through}
-.st-reviewed{color:var(--warn)}
-.det{background:var(--card);border:1px solid var(--line);border-top:none;
-padding:10px 12px;border-radius:0 0 5px 5px}
-.det b{font-weight:600}
-.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
-button.act{background:var(--card);border:1px solid var(--line);color:var(--fg);
-padding:3px 10px;border-radius:4px;font:inherit;cursor:pointer}
-button.act:hover{border-color:var(--acc);color:var(--acc)}
-.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
-gap:8px;margin-bottom:12px}
-.kpi div{background:var(--card);border:1px solid var(--line);border-radius:5px;padding:9px 11px}
-.kpi b{display:block;font-size:17px;font-weight:600}
-.kpi span{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.06em}
-.hint{color:var(--dim);font-size:11px;margin-top:10px}
-.wrap{overflow-x:auto}
-.dive{margin-top:10px;border-top:1px solid var(--line);padding-top:9px}
-.scopes{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-.scope{background:var(--card);border:1px solid var(--line);color:var(--fg);
-padding:4px 11px;border-radius:4px;font:inherit;cursor:pointer;text-align:left}
-.scope:hover{border-color:var(--acc)}
-.scope b{display:block;font-weight:600}
-.scope span{color:var(--dim);font-size:10px}
-.scope.free b{color:var(--acc)}
-.curve{display:flex;gap:2px;align-items:flex-end;height:46px;margin:6px 0}
-.curve i{flex:1;background:var(--acc);border-radius:1px 1px 0 0;min-height:1px}
-.curve i.peak{background:var(--warn)}
-.mon{display:flex;gap:2px;color:var(--dim);font-size:9px}
-.mon span{flex:1;text-align:center}
-.verdikt{border-left:3px solid var(--warn);padding-left:9px;margin:8px 0}
-.busy{color:var(--dim)}
-kbd{border:1px solid var(--line);border-radius:3px;padding:0 4px;font-size:10px}
-@media(max-width:700px){th:nth-child(n+8),td:nth-child(n+8){display:none}}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--t1);height:100%}
+body{font:14px/20px var(--sans);-webkit-font-smoothing:antialiased}
+.num,.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+button,input{font:inherit;color:inherit}
+button{background:none;border:0;cursor:pointer;padding:0}
+
+.app{display:grid;grid-template-columns:240px minmax(0,1fr);height:100vh}
+.app.collapsed{grid-template-columns:64px minmax(0,1fr)}
+.app.collapsed .brand .logo,.app.collapsed .brand .name,.app.collapsed .side-foot,
+.app.collapsed nav a .c,.app.collapsed nav a .kw,.app.collapsed nav a .lbl{display:none}
+.app.collapsed nav a{justify-content:center;padding:0}
+.app.collapsed .brand{justify-content:center;padding:0}
+.app.collapsed .navlabel{font-size:0;height:1px;background:var(--line);margin:16px 12px}
+.icbtn{width:28px;height:28px;border-radius:8px;color:var(--t3);display:flex;align-items:center;justify-content:center;flex:none;
+  transition:background-color .15s var(--ease),color .15s var(--ease)}
+.icbtn:hover{background:var(--s2);color:var(--t1)}
+.brand .icbtn{margin-left:auto}
+.brand .name{font:400 21px/24px var(--serif);letter-spacing:-.01em}
+aside{border-right:1px solid var(--line);padding:20px 12px;display:flex;flex-direction:column;min-height:0}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px;height:32px;font-weight:500;font-size:15px}
+.navlabel{color:var(--t3);font-size:12px;padding:0 8px;margin:24px 0 8px}
+nav{display:flex;flex-direction:column;gap:2px}
+nav a{border:1px solid transparent;display:flex;align-items:center;gap:10px;height:32px;padding:0 8px;border-radius:8px;
+  color:var(--t2);text-decoration:none;cursor:pointer;transition:background-color .15s var(--ease),color .15s var(--ease)}
+nav a:hover{background:var(--s2);color:var(--t1)}
+nav a.on{background:var(--s3);color:var(--t1);border-color:var(--line)}
+nav a svg{width:16px;height:16px;flex:none}
+nav a .c{margin-left:auto;color:var(--t3);font:12px var(--mono)}
+nav a .kw{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.side-foot{margin-top:auto;padding:0 8px;display:flex;flex-direction:column;gap:8px}
+.meter{height:4px;border-radius:2px;background:var(--s3);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--t1)}
+.side-foot .row{display:flex;justify-content:space-between;font-size:12px;color:var(--t2)}
+.side-foot .row b{font:500 12px var(--mono);color:var(--t1)}
+.side-foot .hint{font-size:12px;color:var(--t3)}
+
+main{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
+.stage{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
+.scroll{flex:1;overflow:auto;min-height:0}
+.page{padding:24px 32px 32px;max-width:1240px}
+.head{display:flex;align-items:flex-end;gap:16px;margin-bottom:20px}
+.head h1{font:400 32px/40px var(--serif);margin:0;letter-spacing:-.01em}
+.meta{color:var(--t3);font-size:13px}
+.head .tools{margin-left:auto;display:flex;gap:8px;align-items:center}
+kbd{font:11px/14px var(--mono);color:var(--t2);padding:0 5px;border-radius:4px;border:1px solid var(--line2);background:var(--s2)}
+.seg{display:flex;padding:2px;border-radius:8px;background:var(--s1);border:1px solid var(--line)}
+.seg button{border:1px solid transparent;height:28px;padding:0 10px;border-radius:6px;color:var(--t2);font-size:13px;
+  transition:background-color .15s var(--ease),color .15s var(--ease)}
+.seg button.on{background:var(--s3);color:var(--t1);border-color:var(--line)}
+
+/* Sortier-Pills */
+.pills{display:flex;align-items:center;gap:8px;margin-bottom:24px;flex-wrap:wrap}
+.pills .l{color:var(--t3);font-size:13px;margin-right:4px}
+.pill{height:32px;padding:0 14px;border-radius:16px;border:1px solid var(--line);color:var(--t2);font-size:13px;
+  display:flex;align-items:center;gap:6px;transition:background-color .15s var(--ease),color .15s var(--ease),border-color .15s var(--ease)}
+.pill:hover{background:var(--s2);color:var(--t1)}
+.pill.on{background:var(--t1);color:#0a0a0a;border-color:var(--t1)}
+.pill .ring{width:8px;height:8px;border-radius:50%;border:1.5px solid currentColor}
+.pills .sep{width:1px;height:20px;background:var(--line);margin:0 4px}
+
+/* Gruppen */
+.group{margin-bottom:28px}
+.gh{display:flex;align-items:baseline;gap:10px;padding:0 0 10px}
+.gh h2{font-size:15px;line-height:20px;font-weight:500;margin:0}
+.gh .n{font:12px var(--mono);color:var(--t3)}
+.gh .d{font-size:13px;color:var(--t3)}
+.gh .more{margin-left:auto;font-size:13px;color:var(--t2)}
+.gh .more:hover{color:var(--t1)}
+.list{border-radius:14px;background:var(--s1);border:1px solid var(--line);overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+th{font-weight:400;color:var(--t3);text-align:left;font-size:12px;padding:12px 12px 8px;white-space:nowrap}
+td{padding:0 12px;height:44px;border-top:1px solid var(--line);white-space:nowrap;color:var(--t2);overflow:hidden;text-overflow:ellipsis}
+th:first-child,td:first-child{padding-left:20px}
+th:last-child,td:last-child{padding-right:20px}
+.r{text-align:right}
+tbody tr{cursor:pointer;transition:background-color .12s var(--ease)}
+tbody tr:hover{background:var(--s2)}
+td.kw{color:var(--t1)}
+td.kw .var{color:var(--t3);font:12px var(--mono);margin-left:6px}
+.gapring{display:inline-block;width:8px;height:8px;border-radius:50%;border:1.5px solid var(--t1);margin-left:8px;vertical-align:middle}
+.fr{display:flex;align-items:center;gap:8px}
+.fr.end{justify-content:flex-end}
+.ckey{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t3)}
+.ckey .steps{display:flex;gap:2px}
+.ckey .steps i{width:14px;height:8px;border-radius:2px}
+.fr i{width:8px;height:8px;border-radius:50%;flex:none}
+.tier{font:12px var(--mono)}
+.tr{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.tr svg{flex:none}
+.st-shortlisted{color:var(--t1)}
+.st-rejected{color:var(--t3);text-decoration:line-through}
+.empty{padding:14px 20px;color:var(--t3);font-size:13px}
+
+/* Eingabe unten */
+.composer{position:absolute;left:0;right:0;bottom:0;padding:56px 32px 20px;z-index:6;isolation:isolate;pointer-events:none;
+  background:linear-gradient(to bottom,rgba(10,10,10,0),rgba(10,10,10,.82) 50%,#0a0a0a 85%)}
+.composer::before{content:"";position:absolute;inset:0;z-index:-1;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  -webkit-mask-image:linear-gradient(to bottom,transparent,#000 55%);mask-image:linear-gradient(to bottom,transparent,#000 55%)}
+.composer>*{pointer-events:auto}
+.page{padding-bottom:168px!important}
+.cbox{max-width:760px;margin:0 auto;display:flex;align-items:center;gap:10px;height:52px;padding:0 8px 0 16px;border-radius:14px;
+  background:var(--s2);border:1px solid var(--line2)}
+.cbox:focus-within{border-color:rgba(255,255,255,.3)}
+.cbox input{flex:1;background:transparent;border:0;outline:0;font-size:15px;color:var(--t1);min-width:0}
+.cbox input::placeholder{color:var(--t3)}
+.chip{display:flex;align-items:center;gap:6px;height:28px;padding:0 6px 0 10px;border-radius:8px;background:var(--s3);
+  border:1px solid var(--line);font-size:13px;color:var(--t1);white-space:nowrap;max-width:280px}
+.chip span{overflow:hidden;text-overflow:ellipsis}
+.chip button{width:20px;height:20px;border-radius:4px;color:var(--t3);display:flex;align-items:center;justify-content:center}
+.chip button:hover{background:var(--s2);color:var(--t1)}
+.send{width:36px;height:36px;border-radius:10px;background:var(--t1);color:#0a0a0a;display:flex;align-items:center;justify-content:center;
+  transition:background-color .15s var(--ease),transform .1s var(--ease)}
+.send:hover{background:#fff}
+.send:active{transform:scale(.96)}
+.ccap{max-width:760px;margin:8px auto 0;font-size:12px;color:var(--t3);text-align:center}
+
+/* Dialogfenster */
+.overlay{position:absolute;inset:0;background:rgba(0,0,0,.6);z-index:5;display:flex;align-items:flex-end;justify-content:center;padding:24px 32px 128px}
+.modal{width:760px;max-height:100%;display:flex;flex-direction:column;border-radius:16px;background:var(--s1);border:1px solid var(--line2);
+  box-shadow:0 24px 64px rgba(0,0,0,.5);overflow:hidden;animation:rise .2s var(--ease)}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.mh{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line)}
+.mh .t{font:400 22px/28px var(--serif)}
+.mh .tags{display:flex;gap:6px}
+.tag{font-size:12px;color:var(--t2);height:22px;padding:0 8px;border-radius:6px;border:1px solid var(--line);display:flex;align-items:center}
+.mh .tools{margin-left:auto;display:flex;gap:4px}
+.modal.full{width:100%;height:100%}
+.dgrid.full{grid-template-columns:minmax(0,1fr)}
+.dgrid.full>div:first-child{display:none}
+.dgrid.full .dialog{max-height:none;position:static}
+.dgrid.full .dialog .mb{max-width:760px;margin:0 auto;width:100%}
+.modal.full .mb{max-width:760px;margin:0 auto;width:100%}
+.mb{padding:20px;overflow:auto;display:flex;flex-direction:column;gap:20px}
+.mf{display:flex;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid var(--line)}
+.mf .meta{margin-right:auto}
+
+/* Nachrichten */
+.msg-u{align-self:flex-end;max-width:80%;padding:8px 12px;border-radius:12px;background:var(--s3);border:1px solid var(--line);font-size:14px}
+.msg-a{display:flex;flex-direction:column;gap:14px}
+.verdict{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-radius:12px;border:1px solid var(--line2);background:var(--s2)}
+.verdict .l{font-size:12px;color:var(--t3);display:flex;align-items:center;gap:6px}
+.verdict .l i{width:8px;height:8px;border-radius:50%}
+.verdict .v{font:400 21px/28px var(--serif)}
+.sec{display:grid;grid-template-columns:120px 1fr;gap:12px;font-size:14px;line-height:22px}
+.sec dt{color:var(--t3);font-size:13px}
+.sec dd{margin:0;color:var(--t2)}
+.sec dd b{color:var(--t1);font-weight:500}
+.ameta{font-size:12px;color:var(--t3)}
+.cost{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:12px;border:1px solid var(--line2);background:var(--s2)}
+.cost .h{font-size:15px;font-weight:500}
+.cost ul{margin:0;padding:0 0 0 18px;color:var(--t2);font-size:13px;line-height:22px}
+.cost .sum{display:grid;grid-template-columns:1fr auto;gap:4px 16px;font-size:13px;color:var(--t2);border-top:1px solid var(--line);padding-top:12px}
+.cost .sum b{font:500 13px var(--mono);color:var(--t1);text-align:right}
+.btn{display:flex;align-items:center;gap:8px;height:32px;padding:0 12px;border-radius:8px;background:var(--s2);border:1px solid var(--line);
+  font-size:13px;color:var(--t1);transition:background-color .15s var(--ease),transform .1s var(--ease)}
+.btn:hover{background:var(--s3)}
+.btn:active{transform:scale(.98)}
+.btn.primary{background:var(--t1);color:#0a0a0a;border-color:var(--t1)}
+.btn.primary:hover{background:#fff}
+.btn.on{border-color:var(--t2)}
+.busy{display:flex;align-items:center;gap:10px;color:var(--t2);font-size:13px}
+.bar{height:2px;border-radius:1px;background:var(--s3);overflow:hidden;flex:1}
+.bar i{display:block;height:100%;width:40%;background:var(--t2);animation:slide 1.2s var(--ease) infinite}
+@keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+
+/* Detail */
+.back{display:inline-flex;align-items:center;gap:6px;color:var(--t2);font-size:13px;margin-bottom:12px}
+.back:hover{color:var(--t1)}
+.dhead{display:flex;align-items:flex-end;gap:16px;margin-bottom:20px}
+.dhead h1{font:400 32px/40px var(--serif);margin:0;letter-spacing:-.01em}
+.dhead .actions{margin-left:auto;display:flex;gap:8px}
+.dgrid{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:16px;align-items:start}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.stat{padding:14px 16px;border-radius:14px;background:var(--s1);border:1px solid var(--line)}
+.stat .l{color:var(--t2);font-size:13px;display:flex;align-items:center;gap:6px}
+.stat .l i{width:8px;height:8px;border-radius:50%}
+.stat .v{font:500 24px/32px var(--mono);margin-top:2px}
+.stat .v small{font-size:13px;color:var(--t3);font-weight:400}
+.stat .s{color:var(--t3);font-size:12px}
+.panel{border-radius:14px;background:var(--s1);border:1px solid var(--line);min-width:0;margin-bottom:16px}
+.ph{display:flex;align-items:center;gap:12px;padding:16px 20px 0}
+.ph h2{font-size:15px;line-height:20px;font-weight:500;margin:0}
+.ph .sub{color:var(--t3);font-size:13px}
+.ph .right{margin-left:auto}
+.pb{padding:12px 20px 20px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.kv{display:grid;grid-template-columns:88px 1fr;gap:8px 12px;font-size:13px}
+.kv dt{color:var(--t3)}
+.kv dd{margin:0;color:var(--t2);min-width:0}
+.kv dd.mono{font-size:12px}
+.kv dd.mono div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scopes{display:flex;flex-direction:column;border-radius:8px;border:1px solid var(--line)}
+.scope{display:flex;align-items:center;gap:12px;padding:10px 12px;text-align:left;transition:background-color .15s var(--ease)}
+.scope+.scope{border-top:1px solid var(--line)}
+.scope:hover{background:var(--s2)}
+.scope .radio{width:14px;height:14px;border-radius:50%;border:1px solid var(--line2);flex:none}
+.scope.on .radio{border:4px solid var(--t1)}
+.scope .n{font-size:13px}
+.scope .d{font-size:12px;color:var(--t3)}
+.scope .p{margin-left:auto;font:12px var(--mono);color:var(--t2)}
+.dialog{position:sticky;top:0;display:flex;flex-direction:column;max-height:calc(100vh - 180px)}
+.dialog .mb{padding:16px 20px 20px}
+.dialog .sec{grid-template-columns:1fr;gap:2px}
+.dialog .sec dd{margin-bottom:10px}
+.dialog .ph{padding-bottom:12px;border-bottom:1px solid var(--line)}
+svg text{font-family:var(--mono);font-size:11px;fill:#6b6b6b}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+.err{padding:10px 12px;border-radius:8px;border:1px solid rgba(255,130,110,.35);color:#f2a596;font-size:13px}
+.answer{font-size:14px;line-height:22px;color:var(--t2)}
+.sumline{display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:var(--t3)}
+.sumline b{font:500 14px var(--mono);color:var(--t1)}
+.hits{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;font-size:13px}
+.hits li{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:8px;align-items:center}
+.hits .num{color:var(--t3);font-size:12px}
+.hits .dom{color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:12px var(--mono)}
+.hits .art{font-size:12px;color:var(--t3)}
+.hits .art-product{color:var(--t1)}
+.gapnote{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;border-radius:8px;margin-bottom:16px;
+  background:var(--acc-dim);color:var(--acc);font-size:13px}
+.gapnote::before{content:"";width:8px;height:8px;border-radius:50%;border:1.5px solid var(--acc);margin-top:5px;flex:none}
+.intro{color:var(--t3);font-size:13px;max-width:720px;margin:-8px 0 20px}
+td a{color:inherit;text-decoration:none}
+td a:hover{text-decoration:underline}
+a.btn{text-decoration:none}
+.btn:disabled{opacity:.5;cursor:default}
+select.ov{background:var(--s2);color:var(--t1);border:1px solid var(--line);border-radius:8px;height:28px;padding:0 8px;font:13px var(--sans)}
 </style>
-<header>
- <div class="bar1">
-  <h1>KEYWORLD</h1><span class="dim" id="market"></span>
+</head>
+<body>
+<div class="app">
+<aside>
+  <div class="brand">
+    <svg class="logo" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M5 19V4"/><path d="M5 19h15"/><circle cx="14" cy="10" r="2" fill="#4fe08a" stroke="none"/></svg>
+    <span class="name">Keyworld</span>
+    <button class="icbtn" id="sidetoggle" aria-label="Seitenleiste ein- oder ausklappen" title="Seitenleiste  ["><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg></button>
+  </div>
+  <div class="navlabel">Markt</div>
   <nav>
-   <button data-tab="list" class="on">Shortlist</button>
-   <button data-tab="gaps">L&uuml;cken</button>
-   <button data-tab="queue">Pr&uuml;fliste</button>
-   <button data-tab="cost">Kosten</button>
+    <a class="on" data-nav="list" title="Keywords"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span class="lbl">Keywords</span><span class="c" id="n-all"></span></a>
+    <a data-nav="queue" title="Prüfliste"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg><span class="lbl">Prüfliste</span></a>
+    <a data-nav="costs" title="Kosten"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 0 0 4H8"/><path d="M12 17.5v-11"/></svg><span class="lbl">Kosten</span></a>
   </nav>
- </div>
- <div class="filters" id="filters">
-  <label>Zustand</label><select id="f-state"><option value="">alle</option>
-   <option>new</option><option>shortlisted</option><option>reviewed</option>
-   <option>rejected</option></select>
-  <label>Stufe</label><select id="f-tier"><option value="">alle</option>
-   <option>1</option><option>2</option><option>3</option><option>4</option>
-   <option>0</option></select>
-  <label>SERP</label><select id="f-serp"><option value="">alle</option>
-   <option>PROD</option><option>MIX</option><option>RED</option></select>
-  <label><input type="checkbox" id="f-group" checked> verdichtet</label>
-  <input type="search" id="f-q" placeholder="filtern">
-  <span class="dim" id="count"></span>
- </div>
-</header>
-<main><div id="view"></div></main>
-<script>
-const $ = s => document.querySelector(s);
-const api = (p, o) => fetch(p, o).then(r => r.json());
-let tab = "list", rows = [], cur = 0;
+  <div class="navlabel">Dialoge</div>
+  <nav id="threads"></nav>
+  <div class="side-foot">
+    <div class="row"><span>Ausgegeben</span><b id="spent"></b></div>
+    <div class="meter"><i id="meter"></i></div>
+    <div class="hint" id="saved"></div>
+  </div>
+</aside>
 
-const esc = s => String(s ?? "").replace(/[<>&"]/g, c =>
-  ({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
-const bar = (d, sp) => d == null ? '<span class="dim">?</span>' :
-  `<span class="bar ${d>=60?'b-hi':d>=35?'b-mid':''}"><i style="width:${Math.max(3,d)}%"></i></span> ${d}`
-  + (sp ? `<span class="dim">&plusmn;${Math.round(sp)}</span>` : "");
-
-function q(){
-  const p = new URLSearchParams();
-  for (const [k,id] of [["state","#f-state"],["tier","#f-tier"],["serp","#f-serp"],["q","#f-q"]])
-    if ($(id).value) p.set(k, $(id).value);
-  if (!$("#f-group").checked) p.set("grouped","0");
-  return p.toString();
-}
-
-async function loadList(){
-  const d = await api("/api/shortlist?" + q());
-  rows = d.rows; $("#market").textContent = d.market;
-  $("#count").textContent = rows.length + " Zeilen";
-  render();
-}
-
-function render(){
-  if (!rows.length){ $("#view").innerHTML = '<p class="dim">Nichts gefunden.</p>'; return; }
-  const head = `<tr><th>Keyword</th><th>St</th><th>Difficulty</th><th>SERP</th>
-   <th class="n">Sicher</th><th class="n">CPC</th><th class="n">Vol</th>
-   <th class="n">Trend</th><th class="n">Saison</th><th>Signale</th><th>Top-Domain</th><th>Zustand</th></tr>`;
-  const body = rows.map((r,i) => `<tr data-i="${i}" class="${i===cur?'sel':''}">
-    <td>${esc(r.keyword)}${r.variants && r.variants.length?
-      ` <span class="dim">+${r.variants.length}</span>`:""}</td>
-    <td><span class="t t${r.tier}">${r.tier}</span></td>
-    <td>${bar(r.difficulty, r.spread)}</td>
-    <td><span class="pill ${esc(r.serp_intent)}">${esc(r.serp_intent||"-")}</span></td>
-    <td class="n dim">${r.sure ?? "-"}/${(r.sure||0)+(r.unsure||0)}</td>
-    <td class="n">${r.cpc==null?"-":r.cpc.toFixed(2)}</td>
-    <td class="n">${r.volume ?? "-"}</td>
-    <td class="n dim">${r.trend==null?"-":r.trend.toFixed(2)}</td>
-    <td class="n dim" title="Spitze zu Median - hoch heisst stark saisonal">${r.season==null?"-":r.season.toFixed(1)}</td>
-    <td class="dim">${esc(r.flags)}</td>
-    <td class="dim">${esc((r.top_domains||"").split(" ")[0]||"")}</td>
-    <td class="st-${esc(r.state)}">${esc(r.state)}</td></tr>`).join("");
-  $("#view").innerHTML = `<div class="wrap"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>
-    <div id="det"></div>
-    <p class="hint"><kbd>j</kbd><kbd>k</kbd> bewegen &middot; <kbd>s</kbd> shortlisted
-     &middot; <kbd>r</kbd> rejected &middot; <kbd>v</kbd> reviewed &middot;
-     <kbd>n</kbd> Notiz &middot; <kbd>Enter</kbd> SERP in Google &ouml;ffnen</p>`;
-  $("#view").querySelectorAll("tbody tr").forEach(tr =>
-    tr.onclick = () => { cur = +tr.dataset.i; render(); });
-  detail();
-}
-
-function detail(){
-  const r = rows[cur]; if (!r) return;
-  const v = (r.variants||[]).map(x =>
-    `${esc(x.keyword)} <span class="dim">${x.volume||"-"} / ${x.cpc==null?"-":x.cpc.toFixed(2)}&euro;</span>`
-  ).join(" &middot; ");
-  $("#det").innerHTML = `<div class="det">
-    <b>${esc(r.keyword)}</b> <span class="dim">&mdash; Gebiet ${esc(r.subject||"-")}</span>
-    <div class="row dim">Top-Domains: ${esc(r.top_domains||"-")}</div>
-    ${v?`<div class="row dim">Varianten: ${v}</div>`:""}
-    <div class="row">
-      <button class="act" data-s="shortlisted">shortlisted</button>
-      <button class="act" data-s="reviewed">reviewed</button>
-      <button class="act" data-s="rejected">rejected</button>
-      <input id="note" placeholder="Notiz" value="${esc(r.note||"")}" style="flex:1;min-width:200px">
-      <button class="act" id="savenote">Notiz sichern</button>
+<main>
+  <div class="stage">
+  <div class="scroll" id="scroll">
+    <div class="page" id="view-list">
+      <div class="head">
+        <div><h1>Keywords</h1><div class="meta" id="meta">lädt …</div></div>
+        <div class="tools"><div class="seg" id="tierseg"><button class="on" data-t="13">Ohne Stufe 4</button><button data-t="all">Alle</button></div></div>
+      </div>
+      <div class="pills" id="pills"></div>
+      <div id="groups"></div>
     </div>
-    <div class="dive" id="dive"><div class="scopes"><span class="dim">Tiefenanalyse laedt&hellip;</span></div></div>
-    </div>`;
-  $("#det").querySelectorAll("button[data-s]").forEach(b =>
-    b.onclick = () => setState(r.keyword, b.dataset.s));
-  $("#savenote").onclick = () => setState(r.keyword, null, $("#note").value);
-  loadScopes(r.keyword);
+    <div class="page" id="view-detail" hidden></div>
+    <div class="page" id="view-queue" hidden></div>
+    <div class="page" id="view-costs" hidden></div>
+  </div>
+  <div class="overlay" id="overlay" hidden><div class="modal" id="modal"></div></div>
+  </div>
+
+  <div class="composer">
+    <form class="cbox" id="cform" autocomplete="off">
+      <span class="chip" id="chip" hidden><span id="chipkw"></span><button type="button" id="chipx" aria-label="Bindung lösen"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></span>
+      <input id="cin" maxlength="120" placeholder="Keyword eingeben, zum Beispiel baustellen checkliste app">
+      <kbd>↵</kbd>
+      <button class="send" type="submit" aria-label="Senden"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+    </form>
+    <div class="ccap" id="ccap"></div>
+  </div>
+</main>
+</div>
+
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[<>&"]/g, c => ({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
+const api = (p, o) => fetch(p, o).then(r => r.json()).catch(() => ({error: "Server nicht erreichbar"}));
+const post = (p, b) => api(p, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(b)});
+const nf = new Intl.NumberFormat("de-DE");
+const de2 = v => v == null ? "–" : v.toLocaleString("de-DE", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const usd = (v, nk = 2) => v == null ? "–" : v.toLocaleString("de-DE", {minimumFractionDigits: nk, maximumFractionDigits: nk}) + " $";
+const cent = v => v == null ? "–" : (v < 0.01 ? "unter 0,01 $" : "etwa " + usd(v));
+const TIER = {1:"Werkzeugnot", 2:"Kaufbereit", 3:"Pflicht", 4:"Orientierung", 0:"Offen"};
+const SERP = {PROD:"Produkte", MIX:"Gemischt", RED:"Redaktionell", "?":"Unklar", "":"Unklar"};
+const ART = {product:"Anbieter", article:"Artikel", forum:"Forum", marketplace:"Marktplatz", aggregator:"Portal",
+             download:"Vorlage", institution:"Behörde", unklar:"unklar", unknown:"unklar"};
+const MON = ["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
+const ACC = "#4fe08a";
+const ICON_X = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>`;
+
+// Farbskala Grau zu Phosphorgrün in OKLab. Heller ist immer besser
+const lin = c => c <= .04045 ? c/12.92 : ((c+.055)/1.055)**2.4, srgb = c => c <= .0031308 ? 12.92*c : 1.055*c**(1/2.4)-.055;
+function lab(h){ const n = parseInt(h.slice(1),16), r = lin((n>>16&255)/255), g = lin((n>>8&255)/255), b = lin((n&255)/255);
+  const l = Math.cbrt(.4122214708*r+.5363325363*g+.0514459929*b), m = Math.cbrt(.2119034982*r+.6806995451*g+.1073969566*b), s = Math.cbrt(.0883024619*r+.2817188376*g+.6299787005*b);
+  return [.2104542553*l+.793617785*m-.0040720468*s, 1.9779984951*l-2.428592205*m+.4505937099*s, .0259040371*l+.7827717662*m-.808675766*s]; }
+function rgb([L,a,b]){ const l=(L+.3963377774*a+.2158037573*b)**3, m=(L-.1055613458*a-.0638541728*b)**3, s=(L-.0894841775*a-1.291485548*b)**3;
+  const c = [4.0767416621*l-3.3077115913*m+.2309699292*s, -1.2684380046*l+2.6097574011*m-.3413193965*s, -.0041960863*l-.7034186147*m+1.707614701*s];
+  return "#" + c.map(v => Math.round(255*Math.min(1,Math.max(0,srgb(v)))).toString(16).padStart(2,"0")).join(""); }
+const A = lab(ACC), L0 = .34;
+const ramp = t => t == null || isNaN(t) ? "#3a3a3a" : rgb([L0+(A[0]-L0)*Math.max(0,Math.min(1,t)), A[1]*Math.max(0,Math.min(1,t)), A[2]*Math.max(0,Math.min(1,t))]);
+
+let DATA = null, PTS = [], MARKT = null;
+let tierMode = "13", sortBy = "frei", onlyGaps = false, expanded = {};
+let current = null, bound = null, modalFull = false, dialogFull = false, scope = "standard", busy = false;
+
+const trendPct = p => p.tr == null ? null : Math.round((p.tr-1)*100);
+const fmtPct = tp => tp == null ? "–" : (tp > 0 ? "+" : tp < 0 ? "−" : "") + Math.abs(tp) + " %";
+const vis = () => PTS.filter(p => (tierMode === "all" || p.t !== 4) && (!onlyGaps || p.gap));
+const toPt = r => ({k: r.keyword, v: r.volume, c: r.cpc, d: r.difficulty, sp: r.spread, t: r.tier, st: r.state,
+  si: r.serp_intent, f: r.flags, s: r.subject, td: r.top_domains, su: r.sure, un: r.unsure, tr: r.trend,
+  type: r.typ, gap: r.luecke, mo: r.monate, frei: r.difficulty == null ? null : 100 - r.difficulty});
+
+// ---- Laden
+async function load(){
+  const d = await api("/api/keywords");
+  if (d.error){ $("#meta").textContent = d.error; return; }
+  DATA = d; PTS = d.rows.map(toPt);
+  $("#meta").textContent = `${PTS.length} in der Liste · ${nf.format(d.gemessen)} gemessen · Deutschland`;
+  $("#n-all").textContent = PTS.length;
+  $("#spent").textContent = usd(d.kosten.spent);
+  $("#meter").style.width = Math.min(100, 100*d.kosten.spent/Math.max(d.kosten.budget, d.kosten.spent, .01)) + "%";
+  $("#saved").textContent = `${nf.format(d.kosten.calls)} Abrufe, ${usd(d.kosten.saved)} durch Cache gespart`;
+  sidebarThreads(); if (!$("#view-list").hidden) renderList(); bind(bound);
 }
 
-const SCOPE_TEXT = {
-  schnell:  "nur bereits bezahlte Daten",
-  standard: "echtes Keyword-Umfeld von DataForSEO",
-  tief:     "zusaetzlich die fehlenden SERPs"
+function sidebarThreads(){
+  const heute = new Date(); heute.setHours(0,0,0,0);
+  const label = ts => { const d = new Date(ts*1000), t = new Date(d); t.setHours(0,0,0,0);
+    const diff = Math.round((heute - t)/864e5);
+    return diff <= 0 ? "heute" : diff === 1 ? "gestern" : `${d.getDate()}. ${MON[d.getMonth()]}`; };
+  const th = (DATA && DATA.themen) || [];
+  $("#threads").innerHTML = th.length ? th.map(t => `<a data-k="${esc(t.keyword)}" title="${esc(t.keyword)}" class="${current && current.keyword === t.keyword ? "on" : ""}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/></svg><span class="kw">${esc(t.keyword.length > 17 ? t.keyword.slice(0,15).trimEnd() + "…" : t.keyword)}</span><span class="c">${label(t.ts)}</span></a>`).join("")
+    : `<div class="hint" style="padding:0 8px;font-size:12px;color:var(--t3)">Noch kein Dialog</div>`;
+  $("#threads").querySelectorAll("a").forEach(a => a.onclick = () => openDetail(a.dataset.k));
+}
+
+// ---- Liste
+const SORTS = [["frei","Freiraum"],["cpc","CPC"],["vol","Volumen"],["trend","Trend"]];
+const SCALE_TXT = {frei:["eng","offen"], cpc:["billig","teuer"], vol:["wenig","viel"], trend:["fallend","steigend"]};
+const sortFn = {frei:(a,b)=>(b.frei??-1)-(a.frei??-1), cpc:(a,b)=>(b.c??0)-(a.c??0), vol:(a,b)=>(b.v??0)-(a.v??0), trend:(a,b)=>(b.tr??0)-(a.tr??0)};
+function scaleFor(key){
+  if (key === "frei") return p => p.frei == null ? null : p.frei/100;
+  if (key === "trend") return p => p.tr == null ? null : Math.max(0, Math.min(1, (trendPct(p)+50)/100));
+  const get = key === "cpc" ? p => p.c : p => p.v;
+  const xs = PTS.map(get).filter(x => x > 0);
+  if (!xs.length) return () => null;
+  const a = Math.log10(Math.min(...xs)), b = Math.log10(Math.max(...xs));
+  return p => get(p) > 0 ? (Math.log10(get(p))-a)/((b-a)||1) : null;
+}
+const dot = (key, p, inner, end) => key === sortBy
+  ? `<span class="fr${end?" end":""}"><i style="background:${ramp(scaleFor(key)(p))}"></i>${inner}</span>` : inner;
+function pills(){
+  const gaps = PTS.filter(p => p.gap && (tierMode === "all" || p.t !== 4)).length;
+  $("#pills").innerHTML = `<span class="l">Sortieren nach</span>` +
+    SORTS.map(([k,l]) => `<button class="pill ${sortBy===k?"on":""}" data-s="${k}">${l}</button>`).join("") +
+    `<span class="sep"></span><button class="pill ${onlyGaps?"on":""}" id="gp"><span class="ring"></span>Nur Lücken · ${gaps}</button>` +
+    `<span class="ckey">Farbe zeigt ${SORTS.find(x=>x[0]===sortBy)[1]}: ${SCALE_TXT[sortBy][0]}<span class="steps">${[0,.25,.5,.75,1].map(t=>`<i style="background:${ramp(t)}"></i>`).join("")}</span>${SCALE_TXT[sortBy][1]}</span>`;
+  $("#pills").querySelectorAll("[data-s]").forEach(b => b.onclick = () => { sortBy = b.dataset.s; renderList(); });
+  $("#gp").onclick = () => { onlyGaps = !onlyGaps; renderList(); };
+}
+function spark(mo){
+  if (!mo || mo.length < 2) return "";
+  const v = mo.map(m => m[2]), mx = Math.max(...v), mn = Math.min(...v), w = 56, h = 16;
+  const p = v.map((x,i) => `${(i/(v.length-1)*w).toFixed(1)},${(h-1-(mx===mn?.5:(x-mn)/(mx-mn))*(h-2)).toFixed(1)}`).join(" ");
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${p}" fill="none" stroke="#6b6b6b" stroke-width="1.25" stroke-linejoin="round"/></svg>`;
+}
+function groupRows(list){
+  const by = {}; list.forEach(p => (by[p.s || p.k] ||= []).push(p));
+  return Object.values(by).map(m => { m.sort(sortFn[sortBy]); return Object.assign({}, m[0], {variants: m.length-1}); }).sort(sortFn[sortBy]);
+}
+const COLS = `<colgroup><col><col style="width:64px"><col style="width:112px"><col style="width:88px"><col style="width:96px"><col style="width:132px"><col style="width:104px"></colgroup>`;
+const ZUSTAND = {new:"offen", shortlisted:"gemerkt", reviewed:"geprüft", rejected:"verworfen"};
+function row(r){
+  const tp = trendPct(r);
+  return `<tr data-k="${esc(r.k)}">
+    <td class="kw">${esc(r.k)}${r.variants?`<span class="var">+${r.variants}</span>`:""}${r.gap?`<span class="gapring" title="Lücke"></span>`:""}</td>
+    <td class="tier num">${r.t ?? "–"}</td>
+    <td class="num">${dot("frei", r, `<span>${r.frei ?? "?"}</span>`)}</td>
+    <td class="r num">${dot("cpc", r, `<span>${de2(r.c)}</span>`, true)}</td>
+    <td class="r num">${dot("vol", r, `<span>${r.v == null ? "–" : nf.format(r.v)}</span>`, true)}</td>
+    <td><span class="tr">${spark(r.mo)}${dot("trend", r, `<span class="num">${fmtPct(tp)}</span>`)}</span></td>
+    <td class="st-${esc(r.st)}">${ZUSTAND[r.st] || esc(r.st)}</td></tr>`;
+}
+function renderList(){
+  if (!DATA) return;
+  pills();
+  const v = vis();
+  $("#groups").innerHTML = DATA.typen.map(([id, name, desc]) => {
+    const rows = groupRows(v.filter(p => p.type === id));
+    if (id === "unklar" && !rows.length) return "";
+    const lim = expanded[id] ? rows.length : 6;
+    const knopf = id === "unklar" && DATA.llm
+      ? `<button class="more" id="einordnen">Von DeepSeek einordnen lassen · unter 0,01 $</button>`
+      : rows.length > 6 ? `<button class="more" data-x="${id}">${expanded[id] ? "Weniger zeigen" : `Alle ${rows.length} zeigen`}</button>` : "";
+    return `<section class="group">
+      <div class="gh"><h2>${esc(name)}</h2><span class="n">${rows.length}</span><span class="d">${esc(desc)}</span>${knopf}</div>
+      <div class="list">${rows.length ? `<table>${COLS}<thead><tr><th>Keyword</th><th>Stufe</th><th>Freiraum</th><th class="r">CPC</th><th class="r">Volumen</th><th style="text-align:right">Trend</th><th>Zustand</th></tr></thead>
+        <tbody>${rows.slice(0, lim).map(row).join("")}</tbody></table>` : `<div class="empty">Keine Keywords dieses Typs im Filter</div>`}</div>
+    </section>`;
+  }).join("");
+  $("#groups").querySelectorAll("tbody tr").forEach(tr => tr.onclick = () => openDetail(tr.dataset.k));
+  $("#groups").querySelectorAll("[data-x]").forEach(b => b.onclick = () => { expanded[b.dataset.x] = !expanded[b.dataset.x]; renderList(); });
+  const e = $("#einordnen");
+  if (e) e.onclick = async () => { e.textContent = "Ordnet ein …"; e.disabled = true;
+    const r = await post("/api/typen", {}); if (r.error){ e.textContent = r.error; return; } load(); };
+}
+document.querySelectorAll("#tierseg button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("#tierseg button").forEach(x => x.classList.toggle("on", x===b)); tierMode = b.dataset.t; renderList();
+});
+
+// ---- Einschätzung darstellen
+function answerHTML(m){
+  if (m.art === "einschaetzung" && m.inhalt && m.inhalt.urteil){
+    const e = m.inhalt;
+    return `<div class="msg-a">
+      <div class="verdict"><div class="l"><i style="background:${ramp(e.ton)}"></i>Einschätzung</div><div class="v">${esc(e.urteil)}</div></div>
+      <dl class="sec">${(e.abschnitte||[]).map(a => `<dt>${esc(a.titel)}</dt><dd>${esc(a.text)}</dd>`).join("")}</dl>
+      <div class="ameta">${esc(m.model)} · ${usd(m.kosten, 4)} · gespeichert bei diesem Keyword</div></div>`;
+  }
+  return `<div class="msg-a"><div class="answer">${esc(typeof m.inhalt === "string" ? m.inhalt : JSON.stringify(m.inhalt)).replace(/\n/g,"<br>")}</div>
+    <div class="ameta">${esc(m.model)} · ${usd(m.kosten, 4)}</div></div>`;
+}
+function threadHTML(dlg){
+  return dlg.map(m => m.rolle === "user"
+    ? (m.art === "start" ? "" : `<div class="msg-u">${esc(m.inhalt)}</div>`)
+    : answerHTML(m)).join("");
+}
+const busyHTML = t => `<div class="busy">${esc(t)}<span class="bar"><i></i></span></div>`;
+const errHTML = t => `<div class="err">${esc(t)}</div>`;
+
+// ---- Dialogfenster nach dem Absenden
+const fullBtn = (id, on) => `<button class="icbtn" id="${id}" aria-label="${on?"Verkleinern":"Vollbild"}" title="${on?"Verkleinern":"Vollbild"}  f"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="${on?"M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7":"M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"}"/></svg></button>`;
+function modalShell(kw, tags, body, foot){
+  $("#modal").innerHTML = `
+    <div class="mh"><span class="t">${esc(kw)}</span><div class="tags">${tags.map(t => `<span class="tag">${esc(t)}</span>`).join("")}</div>
+      <div class="tools">${fullBtn("mfull", modalFull)}<button class="icbtn" id="mx" aria-label="Schließen">${ICON_X}</button></div></div>
+    <div class="mb" id="mbody">${body}</div>
+    <div class="mf" id="mfoot">${foot}</div>`;
+  $("#modal").classList.toggle("full", modalFull);
+  $("#mx").onclick = () => closeModal();
+  $("#mfull").onclick = toggleModalFull;
+}
+function toggleModalFull(){ modalFull = !modalFull; $("#modal").classList.toggle("full", modalFull); $("#mfull").outerHTML = fullBtn("mfull", modalFull); $("#mfull").onclick = toggleModalFull; }
+const typName = id => (DATA?.typen.find(t => t[0] === id) || [0,"Typ unklar"])[1];
+
+async function openModal(kw){
+  kw = kw.trim().toLowerCase(); if (!kw) return;
+  bind(kw); $("#overlay").hidden = false;
+  modalShell(kw, [], busyHTML("Prüft, was schon gemessen ist"), "");
+  const est = await api("/api/messen/schaetzung?k=" + encodeURIComponent(kw));
+  if (est.error){ $("#mbody").innerHTML = errHTML(est.error); return; }
+  if (est.dialog || est.gemessen){ return showMeasured(kw, est); }
+  const total = est.messen + (est.llm ? est.ki : 0);
+  const cap = est.messen*1.5 + .01 + (est.llm ? Math.max(.05, est.ki*4) : 0);
+  modalShell(kw, ["noch nicht gemessen"], `
+    <div class="msg-u">${esc(kw)}</div>
+    <div class="cost">
+      <div class="h">Dieses Keyword ist noch nicht gemessen</div>
+      <ul><li>${esc(est.was.join(" und ") || "liegt im Cache")} von DataForSEO</li><li>Die Treffer auf Seite 1 werden danach kostenlos eingestuft</li>
+        ${est.llm ? `<li>Eine Einschätzung von ${esc(est.llm_model)} auf Basis dieser Zahlen</li>` : `<li>Für die Einschätzung fehlt DEEPSEEK_API_KEY in .env</li>`}</ul>
+      <div class="sum"><span>Messung</span><b>${usd(est.messen, 3)}</b>${est.llm ? `<span>Einschätzung</span><b>${cent(est.ki)}</b>` : ""}<span>Höchstens</span><b>${usd(cap, 2)}</b></div>
+    </div>`,
+    `<span class="meta">Mehr als ${usd(cap, 2)} wird nie ausgegeben</span><button class="btn" id="monly">Nur messen</button>${est.llm ? `<button class="btn primary" id="mgo">Messen und einschätzen · ${usd(total, 2)}</button>` : ""}`);
+  if (!est.dfs){ $("#mbody").insertAdjacentHTML("beforeend", errHTML("Keine DataForSEO-Zugangsdaten in .env")); return; }
+  $("#monly").onclick = () => runMeasure(kw, false);
+  if ($("#mgo")) $("#mgo").onclick = () => runMeasure(kw, true);
+}
+async function runMeasure(kw, ki){
+  if (busy) return; busy = true;
+  $("#mfoot").innerHTML = ""; $("#mbody").insertAdjacentHTML("beforeend", busyHTML("Messung läuft, Seite 1 wird eingestuft"));
+  const r = await post("/api/messen", {keyword: kw});
+  busy = false;
+  if (r.error){ $("#mbody").querySelector(".busy").outerHTML = errHTML(r.error + (r.ausgegeben ? ` · ausgegeben ${usd(r.ausgegeben, 4)}` : "")); return; }
+  load();
+  if (!r.volumen){ $("#mbody").querySelector(".busy").outerHTML = `<div class="ameta">${esc(r.hinweis)} · ausgegeben ${usd(r.ausgegeben, 4)}</div>`; return; }
+  if (ki) return runAssess(kw, true);
+  showMeasured(kw, await api("/api/messen/schaetzung?k=" + encodeURIComponent(kw)));
+}
+async function showMeasured(kw, est){
+  const d = await api("/api/keyword?k=" + encodeURIComponent(kw));
+  if (d.error){ $("#mbody").innerHTML = errHTML(d.error); return; }
+  const tags = [typName(d.typ), `Stufe ${d.stufe} ${d.stufe_name}`].concat(d.luecke ? ["Lücke"] : []);
+  const summary = `<div class="sumline"><span><b>${d.volumen == null ? "–" : nf.format(d.volumen)}</b> Suchen</span><span><b>${de2(d.cpc)}</b> € CPC</span><span>Freiraum <b>${d.difficulty == null ? "?" : 100 - d.difficulty}</b></span><span>Trend <b>${fmtPct(d.trend == null ? null : Math.round((d.trend-1)*100))}</b></span></div>`;
+  if (d.dialog.length){
+    modalShell(kw, tags, summary + threadHTML(d.dialog),
+      `<span class="meta">Nachfragen über das Feld unten, sie bleiben bei diesem Keyword</span><button class="btn" id="mclose">Schließen</button><button class="btn primary" id="mdetail">Details öffnen</button>`);
+  } else {
+    modalShell(kw, tags, summary + `<div class="ameta">${d.llm ? "Noch keine Einschätzung zu diesem Keyword" : "Für die Einschätzung fehlt DEEPSEEK_API_KEY in .env"}</div>`,
+      `<span class="meta">${d.llm ? `${esc(d.llm_model)} · ${cent(d.ki_kosten)}` : ""}</span><button class="btn" id="mdetail">Details öffnen</button>${d.llm ? `<button class="btn primary" id="mki">Einschätzen lassen</button>` : ""}`);
+    if ($("#mki")) $("#mki").onclick = () => runAssess(kw, true);
+  }
+  if ($("#mclose")) $("#mclose").onclick = () => closeModal();
+  $("#mdetail").onclick = () => { closeModal(true); openDetail(kw); };
+}
+async function runAssess(kw, inModal){
+  if (busy) return; busy = true;
+  const target = inModal ? $("#mbody") : $("#dthread");
+  if (inModal) $("#mfoot").innerHTML = "";
+  target.insertAdjacentHTML("beforeend", busyHTML("DeepSeek schätzt ein, das dauert bis zu einer Minute"));
+  target.scrollTop = target.scrollHeight;
+  const r = await post("/api/einschaetzen", {keyword: kw});
+  busy = false;
+  if (r.error){ target.querySelector(".busy").outerHTML = errHTML(r.error); return; }
+  load();
+  if (inModal) showMeasured(kw); else openDetail(kw);
+}
+function closeModal(keep){ $("#overlay").hidden = true; if (!keep) bind(current ? current.keyword : null); }
+$("#overlay").addEventListener("click", e => { if (e.target.id === "overlay") closeModal(); });
+
+// ---- Eingabe unten
+function bind(k){
+  bound = k; $("#chip").hidden = !k; $("#chipkw").textContent = k || "";
+  $("#cin").placeholder = k ? "Nachfrage zu diesem Keyword" : "Keyword eingeben, zum Beispiel baustellen checkliste app";
+  const kosten = current && current.keyword === k && current.llm ? current.ki_kosten : null;
+  $("#ccap").textContent = k
+    ? `Gebunden an dieses Keyword${kosten != null ? `, Nachfrage ${cent(kosten)}` : ""}. Das × löst die Bindung für ein neues Keyword`
+    : "Neue Keywords werden erst nach deiner Bestätigung gemessen" + (DATA && DATA.llm ? `. Die Einschätzung schreibt ${DATA.llm_model}` : "");
+}
+$("#chipx").onclick = () => { bind(null); $("#cin").focus(); };
+$("#cform").onsubmit = async e => {
+  e.preventDefault(); const v = $("#cin").value.trim(); if (!v || busy) return;
+  if (!bound){ $("#cin").value = ""; openModal(v); return; }
+  const inModal = !$("#overlay").hidden, target = inModal ? $("#mbody") : $("#dthread");
+  if (!target) return;
+  const hatDialog = target.querySelector(".msg-a");
+  if (!hatDialog){ target.insertAdjacentHTML("beforeend", errHTML("Erst einschätzen lassen, dann nachfragen")); return; }
+  $("#cin").value = ""; busy = true;
+  target.insertAdjacentHTML("beforeend", `<div class="msg-u">${esc(v)}</div>` + busyHTML("DeepSeek antwortet"));
+  target.scrollTop = target.scrollHeight;
+  const r = await post("/api/nachfrage", {keyword: bound, frage: v});
+  busy = false;
+  if (r.error){ target.querySelector(".busy").outerHTML = errHTML(r.error); return; }
+  target.querySelector(".busy").remove();
+  target.insertAdjacentHTML("beforeend", answerHTML(r.dialog[r.dialog.length-1]));
+  target.scrollTop = target.scrollHeight; load();
 };
 
-async function loadScopes(keyword){
-  const box = $("#dive"); if (!box) return;
-  const est = await api("/api/dive/estimate?keyword=" + encodeURIComponent(keyword));
-  box.innerHTML = `<div class="scopes"><span class="dim">Tiefenanalyse:</span>` +
-    ["schnell","standard","tief"].map(sc => {
-      const e = est[sc] || {usd:0};
-      return `<button class="scope ${e.usd?"":"free"}" data-sc="${sc}">
-        <b>${sc} &middot; ${e.usd ? "$"+e.usd.toFixed(4) : "gratis"}</b>
-        <span>${SCOPE_TEXT[sc]}</span></button>`;
-    }).join("") + `</div><div id="diveout"></div>`;
-  box.querySelectorAll("button[data-sc]").forEach(b => b.onclick = () => dive(keyword, b.dataset.sc));
+// ---- Detailansicht
+function trendSVG(mo){
+  if (!mo || mo.length < 2) return `<div class="empty">Keine Monatsdaten</div>`;
+  const W = 640, H = 200, L = 48, R = 28, T = 12, B = 28, v = mo.map(m => m[2] || 0);
+  const mx = Math.max(...v, 10)*1.1, step = mx > 20000 ? 10000 : mx > 5000 ? 2000 : mx > 2000 ? 1000 : mx > 800 ? 250 : 100;
+  const X = i => L + i*(W-L-R)/(v.length-1), Y = x => H-B - x/mx*(H-T-B);
+  const avg = v.reduce((a,b)=>a+b,0)/v.length;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Suchvolumen der letzten 12 Monate">`;
+  for (let y = 0; y <= mx; y += step) s += `<line x1="${L}" x2="${W-R}" y1="${Y(y)}" y2="${Y(y)}" stroke="rgba(255,255,255,.06)"/><text x="${L-8}" y="${Y(y)+4}" text-anchor="end">${nf.format(y)}</text>`;
+  mo.forEach((m,i) => { if (i % 2 === 0 || i === mo.length-1) s += `<text x="${X(i)}" y="${H-8}" text-anchor="middle">${MON[(m[1]||1)-1]} ${String(m[0]).slice(2)}</text>`; });
+  s += `<line x1="${L}" x2="${W-R}" y1="${Y(avg)}" y2="${Y(avg)}" stroke="rgba(255,255,255,.3)" stroke-dasharray="4 4"/><text x="${W-R}" y="${Y(avg)-6}" text-anchor="end">Ø ${nf.format(Math.round(avg))}</text>`;
+  s += `<polyline points="${v.map((x,i)=>`${X(i)},${Y(x)}`).join(" ")}" fill="none" stroke="#ececec" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  v.forEach((x,i) => { s += `<circle cx="${X(i)}" cy="${Y(x)}" r="${i===v.length-1?4:2.5}" fill="${i===v.length-1?ACC:"#ececec"}"/>`; });
+  return s + `</svg>`;
 }
-
-async function dive(keyword, scope){
-  const out = $("#diveout");
-  out.innerHTML = `<p class="busy">Analysiere &bdquo;${esc(keyword)}&ldquo; (${scope})&hellip;
-    ${scope==="schnell"?"":"Abruf laeuft, das dauert einen Moment."}</p>`;
-  const d = await api("/api/dive", {method:"POST", headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({keyword, scope})});
-  if (d.error){ out.innerHTML = `<p class="busy">Fehler: ${esc(d.error)}</p>`; return; }
-  renderDive(out, d);
+function mapSVG(p){
+  const W = 360, H = 240, L = 40, R = 8, T = 8, B = 24;
+  const lx = v => (Math.log10(v)-Math.log10(60))/(Math.log10(30000)-Math.log10(60)), ly = v => (Math.log10(v)-Math.log10(.1))/(Math.log10(60)-Math.log10(.1));
+  const X = v => L + Math.max(0,Math.min(1,lx(Math.max(1,v))))*(W-L-R), Y = v => H-B - Math.max(0,Math.min(1,ly(Math.max(.1,v||.1))))*(H-T-B);
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Lage des Keywords nach Volumen und CPC">`;
+  for (const t of [100,1000,10000]) s += `<line x1="${X(t)}" x2="${X(t)}" y1="${T}" y2="${H-B}" stroke="rgba(255,255,255,.06)"/><text x="${X(t)}" y="${H-6}" text-anchor="middle">${t>=1000?t/1000+"k":t}</text>`;
+  for (const t of [.5,5,50]) s += `<line x1="${L}" x2="${W-R}" y1="${Y(t)}" y2="${Y(t)}" stroke="rgba(255,255,255,.06)"/><text x="${L-6}" y="${Y(t)+4}" text-anchor="end">${String(t).replace(".",",")} €</text>`;
+  if (MARKT) s += `<path d="${MARKT.filter(u => u[1]>=60 && u[2]>=.1).map(u => `M${X(u[1]).toFixed(1)} ${Y(u[2]).toFixed(1)}h1.5v1.5h-1.5z`).join("")}" fill="#333"/>`;
+  s += `<rect x="${X(300)}" y="${Y(60)}" width="${X(10000)-X(300)}" height="${Y(.5)-Y(60)}" fill="rgba(255,255,255,.025)" stroke="rgba(255,255,255,.25)" stroke-dasharray="3 3"/>`;
+  PTS.filter(q => q.k !== p.k && q.v).forEach(q => { s += `<circle cx="${X(q.v)}" cy="${Y(q.c)}" r="2.5" fill="#4a4a4a"/>`; });
+  if (p.v){
+    s += `<line x1="${X(p.v)}" x2="${X(p.v)}" y1="${Y(p.c)+8}" y2="${H-B}" stroke="rgba(255,255,255,.5)" stroke-dasharray="3 3"/><line x1="${L}" x2="${X(p.v)-8}" y1="${Y(p.c)}" y2="${Y(p.c)}" stroke="rgba(255,255,255,.5)" stroke-dasharray="3 3"/>`;
+    s += `<circle cx="${X(p.v)}" cy="${Y(p.c)}" r="5" fill="${ramp(scaleFor(sortBy)(p))}"/><circle cx="${X(p.v)}" cy="${Y(p.c)}" r="9" fill="none" stroke="#fff" stroke-width="1"/>`;
+  }
+  return s + `</svg>`;
 }
+const FLAG = s => (s||"").split(" ").filter(Boolean).map(f => {
+  const m = f.match(/^([A-Z-]+)(\d*)$/); if (!m) return f;
+  const w = {FORUM:"Forum",ARTIKEL:"Artikel",ALT:"älter als 3 Jahre","NUR-EN":"nur Englisch",VORLAGE:"Vorlagen",AMT:"Behörden",PORTAL:"Portal",UNKLAR:"unklar"}[m[1]] || m[1];
+  return m[2] ? `${m[2]} ${w}` : w;
+}).join(" · ");
+const SCOPE_TXT = {schnell:"Nur bezahlte Daten aus dem Cache", standard:"Keyword-Umfeld von DataForSEO", tief:"Zusätzlich fehlende SERPs"};
 
-function renderDive(out, d){
-  const s = d.season, g = d.geld, l = d.landschaft;
-  const MON = ["","Jan","Feb","Mrz","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
+async function openDetail(kw){
+  showView("detail");
+  const d = await api("/api/keyword?k=" + encodeURIComponent(kw));
+  if (d.error){ $("#view-detail").innerHTML = errHTML(d.error); return; }
+  if (!MARKT) api("/api/markt").then(m => { MARKT = (m.punkte || []); if (current && current.keyword === d.keyword) $("#mapbox").innerHTML = mapSVG(current._p); });
+  const p = PTS.find(x => x.k === d.keyword) || {k: d.keyword, v: d.volumen, c: d.cpc, tr: d.trend, frei: d.difficulty == null ? null : 100 - d.difficulty};
+  current = Object.assign(d, {_p: p}); bind(d.keyword); sidebarThreads();
+  const tp = d.trend == null ? null : Math.round((d.trend-1)*100);
+  const sdot = k => k === sortBy ? `<i style="background:${ramp(scaleFor(k)(p))}"></i>` : "";
+  $("#view-detail").innerHTML = `
+    <button class="back" id="back"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>Keywords</button>
+    <div class="dhead">
+      <div><h1>${esc(d.keyword)}</h1><div class="meta">${esc(typName(d.typ))} · Stufe ${d.stufe} ${esc(d.stufe_name)}${d.thema ? ` · Thema ${esc(d.thema)}` : ""}${d.luecke ? " · Lücke" : ""}</div></div>
+      <div class="actions">
+        ${["shortlisted","reviewed","rejected"].map((s,i) => `<button class="btn ${d.zustand===s?"on":""}" data-s="${s}">${["Merken","Geprüft","Verwerfen"][i]} <kbd>${"svr"[i]}</kbd></button>`).join("")}
+      </div>
+    </div>
+    <div class="dgrid${dialogFull?" full":""}">
+      <div>
+        ${d.luecke ? `<div class="gapnote">Lücke: ${esc(d.luecke_grund)}. Niemand verkauft hier organisch</div>` : ""}
+        <div class="stats">
+          <div class="stat"><div class="l">${sdot("vol")}Volumen</div><div class="v">${d.volumen == null ? "–" : nf.format(d.volumen)}</div><div class="s">Suchen pro Monat</div></div>
+          <div class="stat"><div class="l">${sdot("cpc")}CPC</div><div class="v">${de2(d.cpc)}<small> €</small></div><div class="s">pro Klick in Anzeigen</div></div>
+          <div class="stat"><div class="l">${sdot("frei")}Freiraum</div><div class="v">${d.difficulty == null ? "?" : 100 - d.difficulty}${d.streuung ? `<small> ±${Math.round(d.streuung)}</small>` : ""}</div><div class="s">100 − Difficulty</div></div>
+          <div class="stat"><div class="l">${sdot("trend")}Trend</div><div class="v">${tp == null ? "–" : (tp>0?"+":tp<0?"−":"") + Math.abs(tp)}<small> %</small></div><div class="s">Quartal zu Vorquartal</div></div>
+        </div>
+        <div class="panel"><div class="ph"><h2>Suchverlauf</h2><span class="sub">12 Monate, DataForSEO</span></div><div class="pb">${trendSVG(d.monate)}</div></div>
+        <div class="two">
+          <div class="panel"><div class="ph"><h2>Seite 1 bei Google</h2><span class="sub">${esc(SERP[d.serp_art||""])}</span></div><div class="pb">
+            ${d.treffer.length ? `<ol class="hits">${d.treffer.map(t => `<li><span class="num">${t.rang ?? ""}</span><span class="dom">${esc(t.domain)}</span><span class="art art-${esc(t.art)}">${esc(ART[t.art] || t.art)}</span></li>`).join("")}</ol>
+            ${d.signale ? `<div class="ameta" style="margin-top:10px">Signale: ${esc(FLAG(d.signale))}</div>` : ""}` : `<div class="empty">Seite 1 noch nicht gemessen</div>`}
+          </div></div>
+          <div class="panel"><div class="ph"><h2>Lage im Markt</h2><span class="sub">Volumen × CPC</span></div><div class="pb" id="mapbox">${mapSVG(p)}</div></div>
+        </div>
+        <div class="panel"><div class="ph"><h2>Tiefenanalyse</h2><span class="sub">Umfeld, Saison, wer die Plätze hält</span></div><div class="pb" id="divebox">${busyHTML("Kosten werden geschätzt")}</div></div>
+      </div>
+      <div class="panel dialog">
+        <div class="ph"><h2>Dialog</h2><span class="sub">gespeichert bei diesem Keyword</span><div class="right">${fullBtn("dfull", dialogFull)}</div></div>
+        <div class="mb" id="dthread">${d.dialog.length ? threadHTML(d.dialog) : `<div class="ameta">${d.llm ? "Noch keine Einschätzung" : "Für die Einschätzung fehlt DEEPSEEK_API_KEY in .env"}</div>
+          ${d.llm && d.gemessen ? `<div><button class="btn primary" id="dki">Einschätzen lassen · ${cent(d.ki_kosten)}</button></div>` : ""}`}</div>
+      </div>
+    </div>`;
+  $("#back").onclick = () => showView("list");
+  $("#dfull").onclick = toggleDialogFull;
+  if ($("#dki")) $("#dki").onclick = () => runAssess(d.keyword, false);
+  $("#view-detail").querySelectorAll("[data-s]").forEach(b => b.onclick = () => setState(d.keyword, b.dataset.s));
+  $("#scroll").scrollTop = 0;
+  loadScopes(d.keyword);
+}
+function toggleDialogFull(){ dialogFull = !dialogFull; const g = $(".dgrid"); if (g) g.classList.toggle("full", dialogFull); $("#dfull").outerHTML = fullBtn("dfull", dialogFull); $("#dfull").onclick = toggleDialogFull; }
+async function setState(kw, s){
+  await post("/api/state", {keyword: kw, state: s});
+  const p = PTS.find(x => x.k === kw); if (p) p.st = s;
+  if (current && current.keyword === kw){ current.zustand = s;
+    $("#view-detail").querySelectorAll("[data-s]").forEach(b => b.classList.toggle("on", b.dataset.s === s)); }
+}
+async function loadScopes(kw){
+  const est = await api("/api/dive/estimate?keyword=" + encodeURIComponent(kw));
+  const box = $("#divebox"); if (!box || !current || current.keyword !== kw) return;
+  if (est.error){ box.innerHTML = errHTML(est.error); return; }
+  box.innerHTML = `<div class="scopes">${["schnell","standard","tief"].map(n => `<button class="scope ${scope===n?"on":""}" data-sc="${n}"><span class="radio"></span><span><div class="n">${n[0].toUpperCase()+n.slice(1)}</div><div class="d">${SCOPE_TXT[n]}</div></span><span class="p">${est[n].usd ? usd(est[n].usd, 3) : "gratis"}</span></button>`).join("")}</div>
+    <div style="display:flex;gap:8px;margin-top:12px"><button class="btn primary" id="dgo">Analysieren</button><a class="btn" target="_blank" rel="noopener" href="https://www.google.de/search?q=${encodeURIComponent(kw)}">SERP öffnen <kbd>↵</kbd></a></div><div id="diveout"></div>`;
+  box.querySelectorAll("[data-sc]").forEach(b => b.onclick = () => { scope = b.dataset.sc; box.querySelectorAll("[data-sc]").forEach(x => x.classList.toggle("on", x === b)); });
+  $("#dgo").onclick = async () => {
+    $("#diveout").innerHTML = busyHTML(scope === "schnell" ? "Wertet den Cache aus" : "Abruf läuft, das dauert einen Moment");
+    const r = await post("/api/dive", {keyword: kw, scope});
+    if (r.error){ $("#diveout").innerHTML = errHTML(r.error); return; }
+    $("#diveout").innerHTML = diveHTML(r); load();
+  };
+}
+function diveHTML(d){
   let h = "";
-
-  if (d.ausgegeben != null)
-    h += `<p class="dim">Umfang ${esc(d.scope)} &middot; ausgegeben $${d.ausgegeben.toFixed(4)}
-      von $${(d.budget||0).toFixed(4)} Limit${d.gekauft && d.gekauft.length ?
-      " &middot; " + esc(d.gekauft.join(", ")) : ""}</p>`;
-
-  if (g) h += `<div class="verdikt"><b>${esc(g.urteil)}</b><br>
-    <span class="dim">CPC volumengewichtet ${g.cpc_gewichtet.toFixed(2)} &euro; &middot;
-    hoechster ${g.cpc_max.toFixed(2)} &euro; &middot; Wettbewerb ${g.competition_median}/100
-    &middot; ${g.volumen_gesamt.toLocaleString("de")} Suchen/Monat</span></div>`;
-
-  if (s){
-    h += `<p class="dim">Saison &bdquo;${esc(s.keyword)}&ldquo;: Spitze ${s.peak.toLocaleString("de")}
-      im ${MON[s.peak_month]}, Tal ${s.trough.toLocaleString("de")}, ${s.ratio}x</p>
-      <div class="curve">` +
-      s.months.map(m => `<i class="${m[2]===s.peak?"peak":""}"
-        style="height:${Math.max(2,100*m[2]/s.peak)}%" title="${MON[m[1]]} ${m[0]}: ${m[2]}"></i>`).join("") +
-      `</div><div class="mon">` + s.months.map(m=>`<span>${MON[m[1]]}</span>`).join("") + `</div>`;
-  }
-
-  if (l && l.treffer){
-    h += `<p class="dim">Wer die Plaetze haelt (${l.serps} SERPs, ${l.treffer} Treffer)</p>
-      <div class="wrap"><table><thead><tr><th>Art</th><th class="n">Anteil</th>
-      <th>Domains</th></tr></thead><tbody>` +
-      Object.entries(l.anteile).sort((a,b)=>b[1]-a[1]).map(([k,v]) => {
-        const doms = l.top_domains.filter(x=>x.kind===k).slice(0,3).map(x=>x.domain).join(", ");
-        return `<tr><td>${esc(k)}</td><td class="n">${Math.round(100*v)}%</td>
-          <td class="dim">${esc(doms)}</td></tr>`;
-      }).join("") + `</tbody></table></div>`;
-  }
-
-  const kw = (d.keywords||[]).slice(0,12);
-  if (kw.length){
-    h += `<p class="dim">Keyword-Umfeld (${(d.keywords||[]).length} gesamt)</p>
-      <div class="wrap"><table><thead><tr><th>Keyword</th><th class="n">St</th>
-      <th class="n">Vol</th><th class="n">CPC</th><th class="n">Comp</th>
-      <th class="n">Saison</th></tr></thead><tbody>` +
-      kw.map(r=>`<tr><td>${esc(r.keyword)}</td>
-        <td class="n"><span class="t t${r.tier}">${r.tier}</span></td>
-        <td class="n">${r.volume ?? "-"}</td>
-        <td class="n">${r.cpc==null?"-":r.cpc.toFixed(2)}</td>
-        <td class="n dim">${r.competition ?? "-"}</td>
-        <td class="n dim">${r.season==null?"-":r.season.toFixed(1)}</td></tr>`).join("") +
-      `</tbody></table></div>`;
-  }
-
-  const f = d.fragen || {};
-  if ((f.related||[]).length)
-    h += `<p class="dim">Verwandte Suchen</p><p class="tags">` +
-      f.related.slice(0,14).map(q=>`<span class="tag">${esc(q)}</span>`).join(" ") + `</p>`;
-  if ((f.paa||[]).length)
-    h += `<p class="dim">Was Nutzer fragen</p><p class="tags">` +
-      f.paa.slice(0,10).map(q=>`<span class="tag">${esc(q)}</span>`).join(" ") + `</p>`;
-
-  out.innerHTML = h;
+  if (d.ausgegeben != null) h += `<div class="ameta" style="margin-top:14px">Umfang ${esc(d.scope)} · ausgegeben ${usd(d.ausgegeben, 4)}${d.gekauft && d.gekauft.length ? " · " + esc(d.gekauft.join(", ")) : ""}</div>`;
+  if (d.geld) h += `<div class="verdict" style="margin-top:12px"><div class="l">Geld im Thema</div><div class="v" style="font-size:18px">${esc(d.geld.urteil)}</div>
+    <div class="ameta">CPC volumengewichtet ${de2(d.geld.cpc_gewichtet)} € · höchster ${de2(d.geld.cpc_max)} € · ${nf.format(d.geld.volumen_gesamt)} Suchen im Thema</div></div>`;
+  const kw = (d.keywords || []).slice(0, 10);
+  if (kw.length) h += `<table style="margin-top:12px"><thead><tr><th>Umfeld</th><th class="r">Volumen</th><th class="r">CPC</th><th class="r">Saison</th></tr></thead><tbody>` +
+    kw.map(r => `<tr><td class="kw">${esc(r.keyword)}</td><td class="r num">${r.volume == null ? "–" : nf.format(r.volume)}</td><td class="r num">${de2(r.cpc)}</td><td class="r num">${r.season == null ? "–" : r.season.toLocaleString("de-DE")}</td></tr>`).join("") + `</tbody></table>`;
+  return h;
 }
 
-async function setState(keyword, state, note){
-  await api("/api/state", {method:"POST", headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({keyword, state, note})});
-  const r = rows[cur];
-  if (state) r.state = state;
-  if (note != null) r.note = note;
-  render();
-}
-
-async function loadGaps(){
-  const d = await api("/api/gaps");
-  const head = `<tr><th>Keyword</th><th class="n">St</th><th class="n">CPC</th>
-    <th class="n">Vol</th><th class="n">Comp</th><th class="n">Sicher</th>
-    <th>Wer antwortet</th><th>Top-Domains</th></tr>`;
-  const body = d.rows.map(r => `<tr>
-    <td>${esc(r.keyword)}</td>
-    <td class="n"><span class="t t${r.tier}">${r.tier}</span></td>
-    <td class="n">${r.cpc.toFixed(2)}</td>
-    <td class="n">${r.volume}</td>
-    <td class="n dim">${r.competition ?? "-"}</td>
-    <td class="n dim">${r.sure}/${r.total}</td>
-    <td class="dim">${Object.entries(r.antwortet).map(([k,v])=>v+k.slice(0,4)).join(" ")}</td>
-    <td class="dim">${esc(r.domains.slice(0,3).join(", "))}</td></tr>`).join("");
-  $("#view").innerHTML = `<div class="kpi">
-      <div><span>L&uuml;cken</span><b>${d.rows.length}</b></div>
-      <div><span>H&ouml;chster CPC</span><b>${d.rows.length?d.rows[0].cpc.toFixed(2):"-"} &euro;</b></div></div>
-    <p class="hint">Keywords mit konkreter Absicht (Stufe 1&ndash;3), auf deren
-     SERP keine einzige sichere Produktseite steht. Hoher CPC heisst: jemand
-     zahlt f&uuml;r diese Sucher, aber niemand verkauft ihnen etwas organisch.
-     Reine Vorlagen- und Marktplatz-SERPs sind ausgeschlossen &ndash; das ist
-     Gratisware, keine L&uuml;cke.</p>
-    <div class="wrap"><table>${head ? "<thead>"+head+"</thead>" : ""}<tbody>${body}</tbody></table></div>`;
-}
-
+// ---- Prüfliste und Kosten
 async function loadQueue(){
-  const d = await api("/api/queue");
-  const head = `<tr><th>Domain</th><th class="n">SERPs</th><th>Signale</th><th>Einordnen</th></tr>`;
-  const body = d.rows.map(r => `<tr>
-    <td><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.domain)}</a></td>
-    <td class="n">${r.hits}</td><td class="dim">${esc(r.guess)}</td>
-    <td><select class="ov" data-d="${esc(r.domain)}">
-      <option value="">&mdash;</option>
-      ${d.kinds.map(k=>`<option value="${k}">${k}</option>`).join("")}</select></td>
-   </tr>`).join("");
-  const total = d.rows.reduce((a,r)=>a+r.hits,0);
-  let acc = 0, need20 = 0;
-  d.rows.slice(0,20).forEach(r => acc += r.hits);
-  need20 = total ? Math.round(100*acc/total) : 0;
-  $("#view").innerHTML = `<div class="kpi">
-     <div><span>Unsichere Domains</span><b>${d.rows.length}</b></div>
-     <div><span>Betroffene Treffer</span><b>${total}</b></div>
-     <div><span>Top 20 decken ab</span><b>${need20}%</b></div>
-     <div><span>Overrides</span><b>${d.overrides}</b></div></div>
-    <div class="wrap"><table><thead>${head}</thead><tbody>${body}</tbody></table></div>
-    <p class="hint">Nach H&auml;ufigkeit sortiert &mdash; die obersten Zeilen tragen
-     am meisten. Eine Zuordnung schreibt eine Zeile in data/overrides.csv und
-     schl&auml;gt ab dem n&auml;chsten Lauf jede Heuristik. Domainnamen &ouml;ffnen
-     die Beispielseite in einem neuen Tab.</p>`;
-  $("#view").querySelectorAll("select.ov").forEach(sel => sel.onchange = async () => {
+  const box = $("#view-queue"); box.innerHTML = `<div class="head"><div><h1>Prüfliste</h1><div class="meta">lädt …</div></div></div>`;
+  const d = await api("/api/queue"); if (d.error){ box.innerHTML += errHTML(d.error); return; }
+  const total = d.rows.reduce((a,r) => a + r.hits, 0);
+  box.innerHTML = `<div class="head"><div><h1>Prüfliste</h1><div class="meta">${d.rows.length} unsichere Domains in ${nf.format(total)} Treffern · ${d.overrides} Zuordnungen in overrides.csv</div></div></div>
+    <p class="intro">Nach Häufigkeit sortiert, die obersten Zeilen tragen am meisten. Eine Zuordnung schreibt eine Zeile in data/overrides.csv und schlägt ab dem nächsten Lauf jede Heuristik.</p>
+    <div class="list"><table><colgroup><col><col style="width:80px"><col><col style="width:180px"></colgroup>
+    <thead><tr><th>Domain</th><th class="r">Treffer</th><th>Signale</th><th>Einordnen</th></tr></thead><tbody>` +
+    d.rows.map(r => `<tr><td class="kw"><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.domain)}</a></td><td class="r num">${r.hits}</td><td>${esc(r.guess)}</td>
+      <td><select class="ov" data-d="${esc(r.domain)}"><option value="">wählen</option>${d.kinds.map(k => `<option value="${k}">${ART[k] || k}</option>`).join("")}</select></td></tr>`).join("") + `</tbody></table></div>`;
+  box.querySelectorAll("select.ov").forEach(sel => sel.onchange = async () => {
     if (!sel.value) return;
-    await api("/api/override", {method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({domain:sel.dataset.d, type:sel.value, note:"via Interface"})});
-    loadQueue();
-  });
+    await post("/api/override", {domain: sel.dataset.d, type: sel.value, note: "via Interface"}); loadQueue(); });
 }
-
-async function loadCost(){
-  const d = await api("/api/costs");
-  const st = Object.entries(d.states).map(([k,v])=>`${k}=${v}`).join("  ") || "-";
-  $("#view").innerHTML = `<div class="kpi">
-    <div><span>Ausgegeben</span><b>$${d.spent.toFixed(4)}</b></div>
-    <div><span>Gespart (Cache)</span><b>$${d.saved.toFixed(4)}</b></div>
-    <div><span>API-Calls</span><b>${d.calls}</b></div>
-    <div><span>Markt</span><b>${esc(d.market)}</b></div></div>
-   <p class="dim">${esc(st)}</p>
-   <div class="wrap"><table><thead><tr><th>Run</th><th>Seed</th><th class="n">Calls</th>
-    <th class="n">USD</th><th>Status</th></tr></thead><tbody>
-    ${d.runs.map(r=>`<tr><td class="dim">${esc(r.run_id)}</td><td>${esc(r.seed)}</td>
-      <td class="n">${r.calls}</td><td class="n">${(r.cost||0).toFixed(4)}</td>
-      <td class="dim">${esc(r.status)}</td></tr>`).join("")}</tbody></table></div>
-   <p class="hint">Abrufen kostet Geld und passiert nur auf der Kommandozeile:
-    <code>./keyworld.sh scout --domains data/domains.txt --go</code></p>`;
+async function loadCosts(){
+  const box = $("#view-costs"); const d = await api("/api/costs"); if (d.error){ box.innerHTML = errHTML(d.error); return; }
+  box.innerHTML = `<div class="head"><div><h1>Kosten</h1><div class="meta">Alles, was Keyworld je ausgegeben hat, nach den Angaben der Anbieter</div></div></div>
+    <div class="stats"><div class="stat"><div class="l">Ausgegeben</div><div class="v">${usd(d.spent, 4)}</div></div>
+      <div class="stat"><div class="l">Durch Cache gespart</div><div class="v">${usd(d.saved, 4)}</div></div>
+      <div class="stat"><div class="l">Abrufe</div><div class="v">${nf.format(d.calls)}</div></div>
+      <div class="stat"><div class="l">Markt</div><div class="v">${esc(d.market)}</div></div></div>
+    <div class="list"><table><colgroup><col style="width:140px"><col><col style="width:80px"><col style="width:110px"><col style="width:100px"></colgroup>
+    <thead><tr><th>Lauf</th><th>Anlass</th><th class="r">Abrufe</th><th class="r">USD</th><th>Status</th></tr></thead><tbody>` +
+    d.runs.map(r => `<tr><td class="num">${esc(r.run_id)}</td><td class="kw">${esc(r.seed)}</td><td class="r num">${r.calls}</td><td class="r num">${(r.cost||0).toFixed(4).replace(".", ",")}</td><td>${esc(r.status)}</td></tr>`).join("") +
+    `</tbody></table></div>`;
 }
+function showView(v){
+  ["list","detail","queue","costs"].forEach(x => $("#view-" + x).hidden = x !== v);
+  document.querySelectorAll("nav a[data-nav]").forEach(a => a.classList.toggle("on", a.dataset.nav === v));
+  if (v !== "detail"){ current = null; dialogFull = false; bind(null); sidebarThreads(); }
+  if (v === "list") renderList();
+  if (v === "queue") loadQueue();
+  if (v === "costs") loadCosts();
+  $("#scroll").scrollTop = 0;
+}
+document.querySelectorAll("nav a[data-nav]").forEach(a => a.onclick = () => showView(a.dataset.nav));
 
-document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
-  document.querySelectorAll("nav button").forEach(x=>x.classList.remove("on"));
-  b.classList.add("on"); tab = b.dataset.tab;
-  $("#filters").style.display = tab === "list" ? "flex" : "none";
-  ({list:loadList, gaps:loadGaps, queue:loadQueue, cost:loadCost})[tab]();
-});
-["#f-state","#f-tier","#f-serp","#f-group"].forEach(s => $(s).onchange = loadList);
-$("#f-q").oninput = () => { clearTimeout(window._t); window._t = setTimeout(loadList, 200); };
-
+// ---- Seitenleiste und Tastatur
+function toggleSide(force){
+  const on = force ?? !$(".app").classList.contains("collapsed");
+  $(".app").classList.toggle("collapsed", on);
+  try { localStorage.setItem("kw-side", on ? "1" : "0"); } catch (e) {}
+}
+$("#sidetoggle").onclick = () => toggleSide();
+try { if (localStorage.getItem("kw-side") === "1") toggleSide(true); } catch (e) {}
 document.addEventListener("keydown", e => {
-  if (tab !== "list" || /input|select|textarea/i.test(e.target.tagName)) return;
-  const r = rows[cur]; if (!r) return;
-  if (e.key === "j" && cur < rows.length-1) { cur++; render(); }
-  else if (e.key === "k" && cur > 0) { cur--; render(); }
-  else if (e.key === "s") setState(r.keyword, "shortlisted");
-  else if (e.key === "r") setState(r.keyword, "rejected");
-  else if (e.key === "v") setState(r.keyword, "reviewed");
-  else if (e.key === "n") { $("#note")?.focus(); e.preventDefault(); }
-  else if (e.key === "Enter")
-    window.open("https://www.google.de/search?q=" + encodeURIComponent(r.keyword), "_blank");
+  if (e.key === "Escape" && !$("#overlay").hidden) return closeModal();
+  if (/input|select|textarea/i.test(e.target.tagName) || e.metaKey || e.ctrlKey) return;
+  if (e.key === "/"){ e.preventDefault(); $("#cin").focus(); }
+  else if (e.key === "[") toggleSide();
+  else if (e.key === "f"){ if (!$("#overlay").hidden) toggleModalFull(); else if (current) toggleDialogFull(); }
+  else if (current && $("#overlay").hidden && {s:1,v:1,r:1}[e.key]) setState(current.keyword, {s:"shortlisted",v:"reviewed",r:"rejected"}[e.key]);
+  else if (current && e.key === "Enter") window.open("https://www.google.de/search?q=" + encodeURIComponent(current.keyword), "_blank");
 });
-loadList();
+
+bind(null); load();
+})();
 </script>
+</body>
+</html>

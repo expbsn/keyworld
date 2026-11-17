@@ -185,6 +185,174 @@ def run_dive_for_ui(keyword, scope):
         return d
 
 
+# -- Neue Oberflaeche: Liste, Detail, Messen, Einschaetzung ----------------------
+class _Cache:
+    """Nur lesen: prueft den Cache, ohne einen Lauf anzulegen."""
+    def __init__(self):
+        self.conn = connect()
+    cache_get = Run.cache_get
+
+
+class _LiveTarif:
+    """Preise der Live-Abrufe, ohne Netz und ohne Credentials."""
+    name = "dataforseo"
+
+    def estimate_search_volume_cost(self, n):
+        import math
+        return max(1, math.ceil(n / 1000)) * 0.09, 1
+
+    def estimate_serp_cost(self, n):
+        return n * 0.002
+
+
+def _monate(conn, keywords):
+    want = set(keywords)
+    out = {}
+    for r in conn.execute("SELECT keyword, payload FROM kw_cache WHERE source='dataforseo'"):
+        if r["keyword"] not in want:
+            continue
+        try:
+            d = json.loads(r["payload"])
+        except ValueError:
+            continue
+        if isinstance(d, dict):
+            out[r["keyword"]] = [[x.get("year"), x.get("month"), x.get("search_volume") or 0]
+                                 for x in (d.get("monthly") or [])]
+    return out
+
+
+def _gemessen(conn):
+    """Alle Keywords mit Volumen im Cache, fuer die Marktkarte: [[kw, vol, cpc]]."""
+    out = []
+    for r in conn.execute("SELECT payload FROM kw_cache WHERE source='dataforseo'"):
+        try:
+            d = json.loads(r["payload"])
+        except ValueError:
+            continue
+        for x in (d if isinstance(d, list) else [d]):
+            if isinstance(x, dict) and (x.get("search_volume") or 0) > 0:
+                out.append([x.get("keyword"), x["search_volume"], x.get("cpc") or 0])
+    return out
+
+
+def keywords(market):
+    from . import typen
+    from .dive import gaps
+    from .einschaetzung import themen
+    conn = connect()
+    rows = keyword_rows(market)
+    gesp = typen.gespeichert(conn, market)
+    luecken = gaps(conn)
+    lset = set(g["keyword"] for g in luecken)
+    mon = _monate(conn, [r["keyword"] for r in rows])
+    for r in rows:
+        r["typ"] = typen.typ(r["keyword"], gesp)
+        r["luecke"] = r["keyword"] in lset
+        r["monate"] = mon.get(r["keyword"]) or []
+    spent, saved, calls = lifetime_cost()
+    return {"rows": rows, "market": market,
+            "typen": [list(t[:3]) for t in typen.TYPEN] + [list(typen.UNKLAR)],
+            "luecken": len(luecken), "gemessen": len(_gemessen(conn)),
+            "themen": themen(conn, market),
+            "kosten": {"spent": round(spent, 4), "saved": round(saved, 4), "calls": calls,
+                       "budget": Config.run_budget_usd},
+            "llm": Config.has_llm(), "llm_model": Config.llm_model,
+            "dfs": Config.has_dataforseo()}
+
+
+def keyword_detail(market, kw):
+    from .einschaetzung import kontext, kosten_einschaetzung, kosten_nachfrage, verlauf
+    conn = connect()
+    k = kontext(conn, market, kw)
+    v = verlauf(conn, market, kw)
+    k["dialog"] = v
+    k["ki_kosten"] = (kosten_nachfrage if v else kosten_einschaetzung)(
+        conn, market, kw, Config.llm_model) if k["gemessen"] else None
+    k["llm"] = Config.has_llm()
+    k["llm_model"] = Config.llm_model
+    return k
+
+
+def messen_schaetzung(market, kw):
+    from .einschaetzung import kosten_einschaetzung, verlauf
+    from .messen import schaetzung
+    kw = kw.strip().lower()
+    conn = connect()
+    usd, was = schaetzung(_Cache(), _LiveTarif(), kw)
+    row = conn.execute("SELECT 1 FROM keyword_state WHERE keyword=? AND market=?",
+                       (kw, market)).fetchone()
+    # Ohne Messung laesst sich der Kontext erst danach zaehlen; 2.000 Tokens
+    # Eingabe sind fuer ein frisch gemessenes Keyword eher zu viel als zu wenig.
+    from .llm import schaetzung as llm_schaetzung
+    ki = (kosten_einschaetzung(conn, market, kw, Config.llm_model) if row
+          else round(llm_schaetzung(Config.llm_model, 2500, 3500), 4))
+    return {"keyword": kw, "messen": usd, "was": was, "gemessen": bool(row),
+            "dialog": bool(verlauf(conn, market, kw)), "ki": ki,
+            "llm": Config.has_llm(), "dfs": Config.has_dataforseo(),
+            "llm_model": Config.llm_model}
+
+
+def messen_fuer_ui(market, kw):
+    """Budget ist die gezeigte Schaetzung plus Reserve -- mehr kann ueber die
+    Oberflaeche nie ausgegeben werden."""
+    from .messen import messen, schaetzung
+    from .providers import DataForSEO
+    if not Config.has_dataforseo():
+        return {"error": "Keine DataForSEO-Zugangsdaten in .env"}
+    usd, _was = schaetzung(_Cache(), _LiveTarif(), kw)
+    budget = round(usd * 1.5 + 0.01, 4)
+    with Run(seed="messen:%s" % kw, budget_usd=budget) as run:
+        try:
+            out = messen(kw, run, DataForSEO(live=True), market)
+        except Exception as e:                            # noqa: BLE001
+            return {"error": "%s: %s" % (type(e).__name__, e),
+                    "ausgegeben": round(run.total_cost(), 4)}
+        out["ausgegeben"] = round(run.total_cost(), 4)
+        return out
+
+
+def ki_fuer_ui(market, kw, frage=None):
+    from .einschaetzung import (einschaetzen, kosten_einschaetzung, kosten_nachfrage,
+                                nachfragen)
+    from .llm import DeepSeek, LLMFehler
+    if not Config.has_llm():
+        return {"error": "DEEPSEEK_API_KEY fehlt in .env"}
+    conn = connect()
+    model = Config.llm_model
+    est = (kosten_nachfrage if frage else kosten_einschaetzung)(conn, market, kw, model)
+    # Reserve fuer einen zweiten Versuch und laengeres Denken
+    budget = round(max(0.05, est * 4), 4)
+    with Run(seed="ki:%s" % kw, budget_usd=budget, conn=conn) as run:
+        try:
+            if frage:
+                v = nachfragen(conn, market, kw, frage, run, DeepSeek(), model)
+            else:
+                v = einschaetzen(conn, market, kw, run, DeepSeek(), model)
+        except LLMFehler as e:
+            return {"error": str(e), "ausgegeben": round(run.total_cost(), 4)}
+        return {"dialog": v, "ausgegeben": round(run.total_cost(), 4)}
+
+
+def typen_fuer_ui(market):
+    from . import typen
+    from .einschaetzung import typen_einordnen
+    from .llm import DeepSeek, LLMFehler
+    if not Config.has_llm():
+        return {"error": "DEEPSEEK_API_KEY fehlt in .env"}
+    conn = connect()
+    gesp = typen.gespeichert(conn, market)
+    offen = [r["keyword"] for r in keyword_rows(market)
+             if typen.typ(r["keyword"], gesp) == typen.UNKLAR[0]]
+    if not offen:
+        return {"zuordnung": {}, "ausgegeben": 0.0}
+    with Run(seed="typen", budget_usd=0.05, conn=conn) as run:
+        try:
+            z = typen_einordnen(conn, market, offen, run, DeepSeek(), Config.llm_model_schnell)
+        except LLMFehler as e:
+            return {"error": str(e), "ausgegeben": round(run.total_cost(), 4)}
+        return {"zuordnung": z, "ausgegeben": round(run.total_cost(), 4)}
+
+
 def costs():
     spent, saved, calls = lifetime_cost()
     return {"spent": round(spent, 4), "saved": round(saved, 4), "calls": calls,
@@ -253,6 +421,20 @@ class Handler(BaseHTTPRequestHandler):
                 tiers=tuple(int(t) for t in (qs.get("tiers") or "1,2,3").split(",")))})
         if u.path == "/api/costs":
             return self._send(200, costs())
+        if u.path == "/api/keywords":
+            return self._send(200, keywords(market))
+        if u.path == "/api/keyword":
+            kw = (qs.get("k") or "").strip().lower()
+            if not kw:
+                return self._send(400, {"error": "k noetig"})
+            return self._send(200, keyword_detail(market, kw))
+        if u.path == "/api/markt":
+            return self._send(200, {"punkte": _gemessen(connect())})
+        if u.path == "/api/messen/schaetzung":
+            kw = (qs.get("k") or "").strip().lower()
+            if not kw:
+                return self._send(400, {"error": "k noetig"})
+            return self._send(200, messen_schaetzung(market, kw))
         return self._send(404, {"error": "not found"})
 
     def _post(self):
@@ -279,6 +461,22 @@ class Handler(BaseHTTPRequestHandler):
             if scope not in ("schnell", "standard", "tief"):
                 return self._send(400, {"error": "unbekannter Umfang"})
             return self._send(200, run_dive_for_ui(kw, scope))
+
+        if u.path in ("/api/messen", "/api/einschaetzen", "/api/nachfrage"):
+            kw = (body.get("keyword") or "").strip().lower()
+            if not kw or len(kw) > 120:
+                return self._send(400, {"error": "keyword noetig"})
+            if u.path == "/api/messen":
+                return self._send(200, messen_fuer_ui(Config.market(), kw))
+            if u.path == "/api/einschaetzen":
+                return self._send(200, ki_fuer_ui(Config.market(), kw))
+            frage = (body.get("frage") or "").strip()
+            if not frage:
+                return self._send(400, {"error": "frage noetig"})
+            return self._send(200, ki_fuer_ui(Config.market(), kw, frage[:2000]))
+
+        if u.path == "/api/typen":
+            return self._send(200, typen_fuer_ui(Config.market()))
 
         if u.path == "/api/override":
             dom = (body.get("domain") or "").strip().lower()

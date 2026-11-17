@@ -300,3 +300,28 @@ oder Gratis-Vorlagen sitzen.
 
 Geld geben nur `scout --go` und `dive --go` aus. Alles andere ist
 kostenlos.
+
+## Oberflaeche
+
+**Freiraum** — 100 minus Difficulty. Hoch heisst: Seite 1 ist offen. Steht
+im Interface statt der Difficulty, damit ueberall gilt: mehr ist besser.
+
+**Produkttyp** (`typ`) — Was man bauen wuerde, um die Suche zu bedienen:
+App und Software, Vorlage und Dokument, Rechner und Generator,
+Dienstleistung, Wissen. Aus den Suchwoertern abgeleitet, unabhaengig von
+der Absichtsstufe. Was keine Regel trifft, ordnet auf Wunsch das Modell ein.
+
+**Farbskala** — Grau bis Phosphorgruen, heller ist besser. Zeigt immer den
+Parameter, nach dem gerade sortiert wird.
+
+**Einschaetzung** — Ein Urteil in einem Satz, dazu die Zahlen, Seite 1,
+Chance, Risiko und naechster Schritt. Vom Sprachmodell, nur auf Basis der
+gemessenen Werte.
+
+**Dialog** — Die Einschaetzung und alle Nachfragen zu einem Keyword,
+gespeichert. Das Eingabefeld ist danach an das Keyword gebunden; das ×
+loest die Bindung fuer ein neues Keyword.
+
+**Stosszeit** — DeepSeeks teure Stunden: Montag bis Freitag 01-04 und
+06-10 UTC. Ausserhalb kostet jeder Aufruf die Haelfte.
+

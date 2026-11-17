@@ -390,6 +390,11 @@ Schaetzung; Cache-Treffer werden mit 0 gebucht und als Ersparnis gefuehrt.
       render.py            Mono-Tabellen fuers Terminal
       report.py            HTML, niedrigste Prioritaet
       cli.py               Kommandos
+      typen.py             Produkttyp je Keyword
+      llm.py               Sprachmodell (DeepSeek), Kosten je Aufruf
+      einschaetzung.py     Einschaetzung und Dialog je Keyword
+      messen.py            ein Keyword aus dem Interface messen
+      ui.py, static/       lokales Interface
       providers/           DataForSEO, Autocomplete
     data/
       patterns.txt         Muster, editierbar
@@ -407,30 +412,56 @@ Ist der Port belegt, wird das erklaert statt geworfen: laeuft dort bereits
 eine Keyworld-Instanz, oeffnet sich nur der Browser; ist es etwas anderes,
 weicht der Server auf den naechsten freien Port aus.
 
-Lokal, stdlib-HTTP, keine Abhaengigkeit, kein Framework. Duenne Schicht
-ueber denselben Funktionen wie die CLI -- es gibt keine Logik, die nur dort
-existiert. Drei Module:
+Lokal, stdlib-HTTP, kein Framework. Duenne Schicht ueber denselben
+Funktionen wie die CLI. Aufbau:
 
-    Shortlist   verdichtet je Gebiet, filterbar nach Zustand, Stufe und
-                SERP-Absicht. Zustand und Notiz direkt setzen.
-    Pruefliste  unsichere Domains nach Haeufigkeit, mit den Signalen, die
-                zur Unsicherheit gefuehrt haben. Eine Auswahl schreibt eine
-                Zeile in overrides.csv.
-    Kosten      Ledger, Runs, Cache-Ersparnis.
+    Keywords    eine Liste, geteilt nach Produkttyp (App und Software,
+                Vorlage und Dokument, Rechner und Generator, Dienstleistung,
+                Wissen). Pills oben sortieren nach Freiraum, CPC, Volumen
+                oder Trend; die Farbe zeigt immer den Sortierparameter.
+    Eingabe     unten, immer da. Ein Keyword abschicken oeffnet einen
+                Dialog: gemessen -> Zahlen und Einschaetzung, sonst erst
+                der Preis, dann die Messung nach deiner Bestaetigung.
+    Detail      Kennzahlen, Suchverlauf ueber 12 Monate, Seite 1 mit
+                Einstufung, Lage im Markt, Tiefenanalyse und der Dialog.
+    Pruefliste  unsichere Domains; eine Auswahl schreibt overrides.csv.
+    Kosten      Ledger, Laeufe, Cache-Ersparnis.
 
-Tastatur in der Shortlist:
+Tastatur:
 
-    j k      bewegen
-    s        shortlisted        r   rejected        v   reviewed
-    n        Notiz              Enter   SERP in Google oeffnen
+    /        Eingabefeld          [   Seitenleiste ein- und ausklappen
+    f        Dialog im Vollbild   Esc Dialogfenster schliessen
+    s v r    gemerkt, geprueft, verworfen (in der Detailansicht)
+    Enter    SERP in Google oeffnen (in der Detailansicht)
 
-Das Interface scoutet NICHT. Abrufen kostet Geld, und Geld gibt man auf der
-Kommandozeile aus, nicht per Klick im Browser. Es liest den Zustandsspeicher
-und schreibt genau zwei Dinge zurueck: deinen Zustand je Keyword und deine
-Korrekturen.
+Geld gibt das Interface nur mit sichtbarer Schaetzung aus. Die Messung
+eines einzelnen Keywords (Volumen, CPC, Seite 1 live) kostet etwa 0,09 $,
+eine Einschaetzung etwa 0,01 bis 0,02 $. Das Budget jedes Klicks ist die
+gezeigte Schaetzung plus Reserve; mehr kann ueber die Oberflaeche nie
+ausgegeben werden. Alles landet im selben Ledger wie die CLI.
 
-Die Pruefliste zeigt, wie weit die Arbeit traegt: bei 120 unsicheren Domains
-decken die obersten 20 bereits 43 % aller betroffenen Treffer ab.
+### Einschaetzung und Dialog
+
+Ein Sprachmodell erklaert die Messwerte und gibt ein Urteil ab, danach
+gehen Nachfragen ueber das Eingabefeld, gebunden an das Keyword. Der
+Dialog wird je Keyword gespeichert (Tabelle `dialog`) und steht in der
+Seitenleiste unter "Dialoge".
+
+Zurzeit DeepSeek, ueber die OpenAI-kompatible API:
+
+    DEEPSEEK_API_KEY=...                       # in .env
+    KEYWORLD_LLM_MODEL=deepseek-v4-pro         # Einschaetzung und Dialog
+    KEYWORLD_LLM_MODEL_SCHNELL=deepseek-flash  # Typen einordnen
+
+Abgerechnet wird mit den von der API gemeldeten Tokens; zu DeepSeeks
+Stosszeit (Mo-Fr 01-04 und 06-10 UTC) gilt der volle Preis, sonst die
+Haelfte. Das Modell bekommt nur, was Keyworld gemessen hat, und soll
+nichts darueber hinaus behaupten. Beachte: DeepSeeks API laeuft auf
+Servern in China, die gesendeten Keywords und Messwerte gehen dorthin.
+
+Was keine Typ-Regel trifft, steht unter "Noch nicht eingeordnet". Ein Klick
+laesst das schnelle Modell einordnen (unter 0,01 $), gespeichert in
+`kw_typ`. Eine Regel schlaegt immer eine gespeicherte Einordnung.
 
 ## Verdichtung und Trend
 
@@ -455,8 +486,9 @@ Alle Begriffe aus Terminal, CSV und Interface erklaert: [GLOSSAR.md](GLOSSAR.md)
 ## Nicht-Ziele
 
 Das Urteil ueber eine SERP wird nicht automatisiert. Ob die Top 3 schwache
-Blogartikel oder starke Produktseiten sind, entscheidest du. Das Tool
-liefert die Shortlist und den Ort, an dem dein Urteil landet.
+Blogartikel oder starke Produktseiten sind, entscheidest du. Die
+Einschaetzung des Sprachmodells ist eine zweite Meinung zu den Zahlen,
+keine Entscheidung -- sie aendert keinen Zustand und filtert nichts weg.
 
 Das Interface ist ein lokaler Prozess auf 127.0.0.1, kein Dashboard und
 kein Dienst -- es laeuft, solange du es laufen laesst. Abgerufen werden nur

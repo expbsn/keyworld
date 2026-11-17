@@ -11,3 +11,7 @@ reports/
 data/domains.txt
 data/brands.txt
 data/overrides.csv
+
+# Entwurfsdateien und lokale Werkzeug-Einstellungen bleiben lokal
+design/
+.claude/
